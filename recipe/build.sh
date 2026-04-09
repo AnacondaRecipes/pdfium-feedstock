@@ -311,6 +311,20 @@ content = content.replace(
 )
 with open('build/config/sanitizers/sanitizers.gni', 'w') as f:
     f.write(content)
+
+# Patch: Remove -latomic from Linux runtime_library config
+# Chromium's Linux config unconditionally links libatomic, which may not be
+# available in conda's clang environment. PDFium doesn't need it.
+import os
+if os.uname().sysname == 'Linux':
+    with open('build/config/linux/BUILD.gn', 'r') as f:
+        content = f.read()
+    content = content.replace(
+        '    libs = [ "atomic" ]',
+        '    # Patched: -latomic removed (not available in conda clang env)'
+    )
+    with open('build/config/linux/BUILD.gn', 'w') as f:
+        f.write(content)
 PATCH_FLAGS
 
 # --- 6. Generate export symbol list for shared library ---
