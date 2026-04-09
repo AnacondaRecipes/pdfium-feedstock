@@ -1,0 +1,13 @@
+platform:
+  linux-64:
+    enabled: true
+  linux-aarch64:
+    enabled: true
+  osx-arm64:
+    enabled: true
+
+build:
+  error_overlinking: true
+
+upload_channels:
+  - xkong-staging
