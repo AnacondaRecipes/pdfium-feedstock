@@ -27,8 +27,10 @@ build:
 
 requirements:
   build:
-    - {{ compiler('c') }}
-    - {{ compiler('cxx') }}
+    - clang_{{ target_platform }}      # [linux]
+    - clangxx_{{ target_platform }}    # [linux]
+    - {{ compiler('c') }}              # [not linux]
+    - {{ compiler('cxx') }}            # [not linux]
     - {{ stdlib('c') }}
     - ninja-base
     - python  # build tool only (GN scripts); pinned to single version in CBC
