@@ -2,7 +2,7 @@
 set -euo pipefail
 
 echo "=== Building PDFium from source ==="
-echo "PDFium branch: chromium/7776"
+echo "PDFium branch: chromium/${PKG_VERSION}"
 
 # --- Helper function to extract revision from DEPS ---
 get_rev() {
@@ -122,8 +122,8 @@ clone_dep "third_party/nasm" \
 echo "=== Dependencies fetched ==="
 
 # --- 2. Download GN binary ---
-# GN (Generate Ninja) build tool. conda-forge's version is too old.
-# Google publishes the correct version via CIPD.
+# GN (Generate Ninja) build tool. conda-forge's version is too old (v2231,
+# need v2354+). Google publishes the correct version via CIPD.
 GN_REV=$(grep "'gn_version'" DEPS | head -1 | sed "s/.*git_revision:\([a-f0-9]*\).*/\1/")
 echo "GN revision: $GN_REV"
 
@@ -134,7 +134,7 @@ else
 fi
 
 echo "Downloading GN for ${GN_PLATFORM}..."
-curl -sL "https://chrome-infra-packages.appspot.com/dl/gn/gn/${GN_PLATFORM}/+/git_revision:${GN_REV}" -o gn.zip
+curl -sL --fail "https://chrome-infra-packages.appspot.com/dl/gn/gn/${GN_PLATFORM}/+/git_revision:${GN_REV}" -o gn.zip
 unzip -oq gn.zip -d gn_bin
 chmod +x gn_bin/gn
 GN="$(pwd)/gn_bin/gn"
@@ -255,7 +255,35 @@ with open('build/config/sanitizers/sanitizers.gni', 'w') as f:
     f.write(content)
 PATCH_FLAGS
 
-# --- 6. Configure GN ---
+# --- 6. Generate export symbol list for shared library ---
+# PDFium builds with -fvisibility=hidden; we need to export the public FPDF API.
+echo "=== Generating symbol export list ==="
+python3 << 'EXPORT_SYMBOLS'
+import glob, re, os
+
+symbols = []
+for header in sorted(glob.glob("public/fpdf*.h")):
+    with open(header) as f:
+        for line in f:
+            m = re.match(r'FPDF_EXPORT\s+\w.*?\s+(FPDF\w+)\s*\(', line)
+            if m:
+                symbols.append(m.group(1))
+
+if os.uname().sysname == "Darwin":
+    with open("out/pdfium.export_list", "w") as f:
+        for s in symbols:
+            f.write(f"_{s}\n")
+    print(f"macOS export list: {len(symbols)} symbols")
+else:
+    with open("out/pdfium.version_script", "w") as f:
+        f.write("{\n  global:\n")
+        for s in symbols:
+            f.write(f"    {s};\n")
+        f.write("  local:\n    *;\n};\n")
+    print(f"Linux version script: {len(symbols)} symbols")
+EXPORT_SYMBOLS
+
+# --- 7. Configure GN ---
 echo "=== Configuring build ==="
 mkdir -p out/Release
 cat > out/Release/args.gn <<ARGS
@@ -280,14 +308,14 @@ ARGS
 $GN gen out/Release
 echo "GN generated $(grep -c 'target' out/Release/build.ninja 2>/dev/null || echo '?') rules"
 
-# --- 7. Build ---
+# --- 8. Build ---
 NCPU=${CPU_COUNT:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}
 echo "=== Building pdfium (-j${NCPU}) ==="
 ninja -C out/Release pdfium -j${NCPU}
 echo "Static library:"
 ls -lah out/Release/obj/libpdfium.a
 
-# --- 8. Create shared library from static archive ---
+# --- 9. Create shared library from static archive ---
 echo "=== Creating shared library ==="
 if [[ "$(uname)" == "Darwin" ]]; then
     SDK_PATH=$(xcrun --show-sdk-path 2>/dev/null || echo "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk")
@@ -295,7 +323,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
         -Wl,-install_name,@rpath/libpdfium.dylib \
         -isysroot "$SDK_PATH" \
         -framework AppKit -framework CoreFoundation \
-        -undefined dynamic_lookup \
+        -Wl,-exported_symbols_list,out/pdfium.export_list \
         -o out/Release/libpdfium.dylib \
         out/Release/obj/libpdfium.a
     LIBFILE="libpdfium.dylib"
@@ -304,6 +332,7 @@ else
         out/Release/obj/libpdfium.a \
         -Wl,--no-whole-archive \
         -Wl,-soname,libpdfium.so \
+        -Wl,--version-script=out/pdfium.version_script \
         -lpthread -lm -ldl \
         -o out/Release/libpdfium.so
     LIBFILE="libpdfium.so"
@@ -311,7 +340,7 @@ fi
 echo "Shared library:"
 ls -lah out/Release/${LIBFILE}
 
-# --- 9. Install ---
+# --- 10. Install ---
 echo "=== Installing ==="
 mkdir -p "$PREFIX/lib" "$PREFIX/include"
 
