@@ -279,6 +279,7 @@ PATCH_FLAGS
 # --- 6. Generate export symbol list for shared library ---
 # PDFium builds with -fvisibility=hidden; we need to export the public FPDF API.
 echo "=== Generating symbol export list ==="
+mkdir -p out
 python3 << 'EXPORT_SYMBOLS'
 import glob, re, os
 
