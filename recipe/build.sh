@@ -173,20 +173,24 @@ CLANG_REVISION = 'llvmorg-${CLANG_MAJOR}-init-0'
 CLANG_SUB_REVISION = 0
 PYEOF
 
-# Symlink our compiler into the expected location
-# On conda, CC may be a wrapper script like x86_64-conda-linux-gnu-clang
-CC_REAL=$(which ${CC:-clang} 2>/dev/null || echo "")
-CXX_REAL=$(which ${CXX:-clang++} 2>/dev/null || echo "")
+# Create wrapper scripts that call the conda compiler with all its proper flags.
+# Symlinking doesn't work because the conda wrapper (x86_64-conda-linux-gnu-clang)
+# needs to run from its original location to find its configuration.
+CC_REAL=$(which ${CC:-clang} 2>/dev/null || which clang)
+CXX_REAL=$(which ${CXX:-clang++} 2>/dev/null || which clang++)
 echo "CC_REAL=$CC_REAL CXX_REAL=$CXX_REAL"
 
-if [[ -n "$CC_REAL" ]]; then
-    ln -sf "$CC_REAL" "${CLANG_DIR}/bin/clang"
-    ln -sf "${CXX_REAL:-$CC_REAL}" "${CLANG_DIR}/bin/clang++"
-else
-    echo "WARNING: No CC found, using system clang"
-    ln -sf "$(which clang)" "${CLANG_DIR}/bin/clang"
-    ln -sf "$(which clang++)" "${CLANG_DIR}/bin/clang++"
-fi
+cat > "${CLANG_DIR}/bin/clang" <<WRAPPER
+#!/bin/bash
+exec "$CC_REAL" "\$@"
+WRAPPER
+chmod +x "${CLANG_DIR}/bin/clang"
+
+cat > "${CLANG_DIR}/bin/clang++" <<WRAPPER
+#!/bin/bash
+exec "$CXX_REAL" "\$@"
+WRAPPER
+chmod +x "${CLANG_DIR}/bin/clang++"
 
 # Link compiler runtime libraries
 # On Linux, Chromium expects: lib/clang/<ver>/lib/<triple>/libclang_rt.builtins.a
@@ -341,31 +345,6 @@ EXPORT_SYMBOLS
 # --- 7. Configure GN ---
 echo "=== Configuring build ==="
 mkdir -p out/Release
-# On Linux with conda clang, we need to set the sysroot for system headers.
-# The conda clang wrapper normally does this, but GN calls clang directly.
-EXTRA_CFLAGS=""
-EXTRA_LDFLAGS=""
-if [[ "$(uname)" == "Linux" ]]; then
-    # Find the conda sysroot — check multiple locations
-    CONDA_SYSROOT=""
-    for candidate in \
-        "${CONDA_BUILD_SYSROOT:-}" \
-        "${BUILD_PREFIX}/${HOST}/sysroot" \
-        "${BUILD_PREFIX}/x86_64-conda-linux-gnu/sysroot" \
-        "${PREFIX}/${HOST}/sysroot" \
-        "${PREFIX}/x86_64-conda-linux-gnu/sysroot"; do
-        if [[ -n "$candidate" && -d "$candidate" ]]; then
-            CONDA_SYSROOT="$candidate"
-            break
-        fi
-    done
-    echo "Using sysroot: ${CONDA_SYSROOT:-NOT FOUND}"
-    if [[ -n "$CONDA_SYSROOT" ]]; then
-        EXTRA_CFLAGS="\"--sysroot=${CONDA_SYSROOT}\","
-        EXTRA_LDFLAGS="\"--sysroot=${CONDA_SYSROOT}\","
-    fi
-fi
-
 cat > out/Release/args.gn <<ARGS
 is_debug = false
 pdf_is_standalone = true
@@ -386,11 +365,6 @@ use_glib = false
 clang_version = "${CLANG_MAJOR}"
 ARGS
 
-# Append sysroot flags if needed
-if [[ -n "$EXTRA_CFLAGS" ]]; then
-    echo "extra_cflags = [${EXTRA_CFLAGS}]" >> out/Release/args.gn
-    echo "extra_ldflags = [${EXTRA_LDFLAGS}]" >> out/Release/args.gn
-fi
 echo "--- args.gn ---"
 cat out/Release/args.gn
 echo "---"
