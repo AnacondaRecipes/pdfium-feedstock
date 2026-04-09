@@ -32,7 +32,7 @@ requirements:
     - {{ compiler('cxx') }}
     - {{ stdlib('c') }}
     - ninja-base
-    - python 3.12.*  # build tool only (GN scripts), not a variant
+    - python  # build tool only (GN scripts); pinned to single version in CBC
     - curl
     - unzip
     - git
