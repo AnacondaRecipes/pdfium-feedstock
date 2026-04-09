@@ -341,6 +341,21 @@ EXPORT_SYMBOLS
 # --- 7. Configure GN ---
 echo "=== Configuring build ==="
 mkdir -p out/Release
+# On Linux with conda clang, we need to set the sysroot for system headers
+EXTRA_CFLAGS=""
+EXTRA_LDFLAGS=""
+if [[ "$(uname)" == "Linux" ]]; then
+    CONDA_SYSROOT="${BUILD_PREFIX}/${HOST:-x86_64-conda-linux-gnu}/sysroot"
+    if [[ ! -d "$CONDA_SYSROOT" ]]; then
+        CONDA_SYSROOT="${PREFIX}/${HOST:-x86_64-conda-linux-gnu}/sysroot"
+    fi
+    if [[ -d "$CONDA_SYSROOT" ]]; then
+        echo "Using sysroot: $CONDA_SYSROOT"
+        EXTRA_CFLAGS="\"--sysroot=${CONDA_SYSROOT}\","
+        EXTRA_LDFLAGS="\"--sysroot=${CONDA_SYSROOT}\","
+    fi
+fi
+
 cat > out/Release/args.gn <<ARGS
 is_debug = false
 pdf_is_standalone = true
@@ -360,6 +375,14 @@ use_lld = false
 use_glib = false
 clang_version = "${CLANG_MAJOR}"
 ARGS
+
+# Append sysroot flags if needed
+if [[ -n "$EXTRA_CFLAGS" ]]; then
+    cat >> out/Release/args.gn <<SYSROOT
+extra_cflags = [${EXTRA_CFLAGS}]
+extra_ldflags = [${EXTRA_LDFLAGS}]
+SYSROOT
+fi
 
 $GN gen out/Release
 echo "GN generated $(grep -c 'target' out/Release/build.ninja 2>/dev/null || echo '?') rules"
