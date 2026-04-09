@@ -380,6 +380,11 @@ use_llvm_libatomic = false
 clang_version = "${CLANG_MAJOR}"
 ARGS
 
+# macOS: lower SDK minimum to match CI Xcode version
+if [[ "$(uname)" == "Darwin" ]]; then
+    echo 'mac_sdk_min = "11.0"' >> out/Release/args.gn
+fi
+
 echo "--- args.gn ---"
 cat out/Release/args.gn
 echo "---"
