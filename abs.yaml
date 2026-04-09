@@ -8,6 +8,3 @@ platform:
 
 build:
   error_overlinking: true
-
-upload_channels:
-  - xkong-staging
