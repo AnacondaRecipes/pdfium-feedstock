@@ -189,17 +189,50 @@ else
 fi
 
 # Link compiler runtime libraries
+# On Linux, Chromium expects: lib/clang/<ver>/lib/<triple>/libclang_rt.builtins.a
+# conda may use a different layout, so we create the expected structure.
 CLANG_LIB_DIR=""
-for search_dir in "${BUILD_PREFIX:-/usr}/lib/clang" "/usr/lib/clang"; do
+for search_dir in "${BUILD_PREFIX:-/usr}/lib/clang" "${PREFIX}/lib/clang" "/usr/lib/clang"; do
     if [[ -d "$search_dir" ]]; then
-        CLANG_LIB_DIR=$(find "$search_dir" -maxdepth 1 -type d 2>/dev/null | sort -V | tail -1)
-        break
+        CLANG_LIB_DIR=$(find "$search_dir" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | sort -V | tail -1)
+        if [[ -n "$CLANG_LIB_DIR" ]]; then
+            break
+        fi
     fi
 done
 echo "CLANG_LIB_DIR=$CLANG_LIB_DIR"
-if [[ -n "$CLANG_LIB_DIR" && "$CLANG_LIB_DIR" != */clang ]]; then
-    mkdir -p "${CLANG_DIR}/lib/clang"
-    ln -sf "$CLANG_LIB_DIR" "${CLANG_DIR}/lib/clang/${CLANG_MAJOR}"
+if [[ -n "$CLANG_LIB_DIR" ]]; then
+    mkdir -p "${CLANG_DIR}/lib/clang/${CLANG_MAJOR}"
+    # Symlink the entire lib subdirectory
+    if [[ -d "$CLANG_LIB_DIR/lib" ]]; then
+        ln -sf "$CLANG_LIB_DIR/lib" "${CLANG_DIR}/lib/clang/${CLANG_MAJOR}/lib"
+    fi
+
+    # On Linux, ensure the triple-specific directory exists with builtins
+    if [[ "$(uname)" == "Linux" ]]; then
+        TRIPLE=$($CC -dumpmachine 2>/dev/null || echo "x86_64-unknown-linux-gnu")
+        # Chromium uses x86_64-unknown-linux-gnu but conda may use x86_64-conda-linux-gnu
+        CHROMIUM_TRIPLE=$(echo "$TRIPLE" | sed 's/-conda-/-unknown-/')
+        BUILTINS_DIR="${CLANG_DIR}/lib/clang/${CLANG_MAJOR}/lib/${CHROMIUM_TRIPLE}"
+        mkdir -p "$BUILTINS_DIR"
+
+        # Find the actual builtins library wherever it may be
+        BUILTINS=$(find "${BUILD_PREFIX:-/usr}/lib" "${PREFIX}/lib" -name "libclang_rt.builtins*.a" -path "*/clang/*" 2>/dev/null | head -1)
+        echo "BUILTINS=$BUILTINS"
+        if [[ -n "$BUILTINS" ]]; then
+            ln -sf "$BUILTINS" "${BUILTINS_DIR}/libclang_rt.builtins.a"
+        fi
+
+        # Also link any other runtime libs that may be needed
+        BUILTINS_SRC_DIR=$(dirname "$BUILTINS" 2>/dev/null)
+        if [[ -n "$BUILTINS_SRC_DIR" && -d "$BUILTINS_SRC_DIR" ]]; then
+            for lib in "$BUILTINS_SRC_DIR"/libclang_rt.*.a; do
+                if [[ -f "$lib" ]]; then
+                    ln -sf "$lib" "${BUILTINS_DIR}/$(basename "$lib")"
+                fi
+            done
+        fi
+    fi
 fi
 
 # --- 5. Apply patches ---

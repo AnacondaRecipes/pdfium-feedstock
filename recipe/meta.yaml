@@ -29,6 +29,7 @@ requirements:
   build:
     - clang_{{ target_platform }}      # [linux]
     - clangxx_{{ target_platform }}    # [linux]
+    - compiler-rt                      # [linux]
     - {{ compiler('c') }}              # [not linux]
     - {{ compiler('cxx') }}            # [not linux]
     - {{ stdlib('c') }}
