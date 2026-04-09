@@ -362,6 +362,7 @@ use_thin_lto = false
 pdf_is_complete_lib = true
 use_lld = false
 use_glib = false
+use_llvm_libatomic = false
 clang_version = "${CLANG_MAJOR}"
 ARGS
 
