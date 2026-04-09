@@ -341,16 +341,26 @@ EXPORT_SYMBOLS
 # --- 7. Configure GN ---
 echo "=== Configuring build ==="
 mkdir -p out/Release
-# On Linux with conda clang, we need to set the sysroot for system headers
+# On Linux with conda clang, we need to set the sysroot for system headers.
+# The conda clang wrapper normally does this, but GN calls clang directly.
 EXTRA_CFLAGS=""
 EXTRA_LDFLAGS=""
 if [[ "$(uname)" == "Linux" ]]; then
-    CONDA_SYSROOT="${BUILD_PREFIX}/${HOST:-x86_64-conda-linux-gnu}/sysroot"
-    if [[ ! -d "$CONDA_SYSROOT" ]]; then
-        CONDA_SYSROOT="${PREFIX}/${HOST:-x86_64-conda-linux-gnu}/sysroot"
-    fi
-    if [[ -d "$CONDA_SYSROOT" ]]; then
-        echo "Using sysroot: $CONDA_SYSROOT"
+    # Find the conda sysroot — check multiple locations
+    CONDA_SYSROOT=""
+    for candidate in \
+        "${CONDA_BUILD_SYSROOT:-}" \
+        "${BUILD_PREFIX}/${HOST}/sysroot" \
+        "${BUILD_PREFIX}/x86_64-conda-linux-gnu/sysroot" \
+        "${PREFIX}/${HOST}/sysroot" \
+        "${PREFIX}/x86_64-conda-linux-gnu/sysroot"; do
+        if [[ -n "$candidate" && -d "$candidate" ]]; then
+            CONDA_SYSROOT="$candidate"
+            break
+        fi
+    done
+    echo "Using sysroot: ${CONDA_SYSROOT:-NOT FOUND}"
+    if [[ -n "$CONDA_SYSROOT" ]]; then
         EXTRA_CFLAGS="\"--sysroot=${CONDA_SYSROOT}\","
         EXTRA_LDFLAGS="\"--sysroot=${CONDA_SYSROOT}\","
     fi
@@ -378,11 +388,12 @@ ARGS
 
 # Append sysroot flags if needed
 if [[ -n "$EXTRA_CFLAGS" ]]; then
-    cat >> out/Release/args.gn <<SYSROOT
-extra_cflags = [${EXTRA_CFLAGS}]
-extra_ldflags = [${EXTRA_LDFLAGS}]
-SYSROOT
+    echo "extra_cflags = [${EXTRA_CFLAGS}]" >> out/Release/args.gn
+    echo "extra_ldflags = [${EXTRA_LDFLAGS}]" >> out/Release/args.gn
 fi
+echo "--- args.gn ---"
+cat out/Release/args.gn
+echo "---"
 
 $GN gen out/Release
 echo "GN generated $(grep -c 'target' out/Release/build.ninja 2>/dev/null || echo '?') rules"
