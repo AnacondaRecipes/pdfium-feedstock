@@ -324,6 +324,7 @@ clang_use_chrome_plugins = false
 use_thin_lto = false
 pdf_is_complete_lib = true
 use_lld = false
+use_glib = false
 clang_version = "${CLANG_MAJOR}"
 ARGS
 
