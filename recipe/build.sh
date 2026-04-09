@@ -156,14 +156,17 @@ mkdir -p third_party/simdutf
 echo 'group("simdutf") {}' > third_party/simdutf/BUILD.gn
 
 # --- 4. Set up compiler integration ---
+echo "CC=$CC CXX=$CXX"
+echo "BUILD_PREFIX=$BUILD_PREFIX"
 CLANG_MAJOR=$(${CC:-clang} -dumpversion 2>/dev/null | cut -d. -f1 || echo "17")
 echo "Compiler: $(${CC:-clang} --version 2>&1 | head -1)"
 echo "Clang major version: $CLANG_MAJOR"
 
 # Create clang version stubs for Chromium's consistency checks
-mkdir -p third_party/llvm-build/Release+Asserts/bin
-mkdir -p third_party/llvm-build/Release+Asserts/lib
-echo "llvmorg-${CLANG_MAJOR}-init-0-0" > third_party/llvm-build/Release+Asserts/cr_build_revision
+CLANG_DIR="third_party/llvm-build/Release+Asserts"
+mkdir -p "${CLANG_DIR}/bin"
+mkdir -p "${CLANG_DIR}/lib"
+echo "llvmorg-${CLANG_MAJOR}-init-0-0" > "${CLANG_DIR}/cr_build_revision"
 mkdir -p tools/clang/scripts
 cat > tools/clang/scripts/update.py <<PYEOF
 CLANG_REVISION = 'llvmorg-${CLANG_MAJOR}-init-0'
@@ -171,15 +174,32 @@ CLANG_SUB_REVISION = 0
 PYEOF
 
 # Symlink our compiler into the expected location
-if [[ -n "${CC:-}" ]]; then
-    ln -sf "$(which $CC)" "third_party/llvm-build/Release+Asserts/bin/clang"
-    ln -sf "$(which ${CXX:-clang++})" "third_party/llvm-build/Release+Asserts/bin/clang++"
+# On conda, CC may be a wrapper script like x86_64-conda-linux-gnu-clang
+CC_REAL=$(which ${CC:-clang} 2>/dev/null || echo "")
+CXX_REAL=$(which ${CXX:-clang++} 2>/dev/null || echo "")
+echo "CC_REAL=$CC_REAL CXX_REAL=$CXX_REAL"
 
-    # Link compiler runtime libraries
-    CLANG_LIB_DIR=$(find "${BUILD_PREFIX:-/usr}/lib/clang" -maxdepth 1 -type d 2>/dev/null | sort -V | tail -1)
-    if [[ -n "$CLANG_LIB_DIR" ]]; then
-        ln -sf "$CLANG_LIB_DIR" "third_party/llvm-build/Release+Asserts/lib/clang/${CLANG_MAJOR}"
+if [[ -n "$CC_REAL" ]]; then
+    ln -sf "$CC_REAL" "${CLANG_DIR}/bin/clang"
+    ln -sf "${CXX_REAL:-$CC_REAL}" "${CLANG_DIR}/bin/clang++"
+else
+    echo "WARNING: No CC found, using system clang"
+    ln -sf "$(which clang)" "${CLANG_DIR}/bin/clang"
+    ln -sf "$(which clang++)" "${CLANG_DIR}/bin/clang++"
+fi
+
+# Link compiler runtime libraries
+CLANG_LIB_DIR=""
+for search_dir in "${BUILD_PREFIX:-/usr}/lib/clang" "/usr/lib/clang"; do
+    if [[ -d "$search_dir" ]]; then
+        CLANG_LIB_DIR=$(find "$search_dir" -maxdepth 1 -type d 2>/dev/null | sort -V | tail -1)
+        break
     fi
+done
+echo "CLANG_LIB_DIR=$CLANG_LIB_DIR"
+if [[ -n "$CLANG_LIB_DIR" && "$CLANG_LIB_DIR" != */clang ]]; then
+    mkdir -p "${CLANG_DIR}/lib/clang"
+    ln -sf "$CLANG_LIB_DIR" "${CLANG_DIR}/lib/clang/${CLANG_MAJOR}"
 fi
 
 # --- 5. Apply patches ---
