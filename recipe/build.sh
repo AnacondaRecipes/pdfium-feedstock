@@ -135,7 +135,15 @@ else
 fi
 
 echo "Downloading GN for ${GN_PLATFORM}..."
-curl -sL --fail "https://chrome-infra-packages.appspot.com/dl/gn/gn/${GN_PLATFORM}/+/git_revision:${GN_REV}" -o gn.zip
+# Use python instead of curl to avoid dyld symbol issues on macOS
+# (conda curl can conflict with system libcurl)
+python3 -c "
+import urllib.request, sys
+url = 'https://chrome-infra-packages.appspot.com/dl/gn/gn/${GN_PLATFORM}/+/git_revision:${GN_REV}'
+print(f'Fetching: {url}')
+urllib.request.urlretrieve(url, 'gn.zip')
+print('Downloaded gn.zip')
+"
 unzip -oq gn.zip -d gn_bin
 chmod +x gn_bin/gn
 GN="$(pwd)/gn_bin/gn"
@@ -191,6 +199,19 @@ cat > "${CLANG_DIR}/bin/clang++" <<WRAPPER
 exec "$CXX_REAL" "\$@"
 WRAPPER
 chmod +x "${CLANG_DIR}/bin/clang++"
+
+# Create wrappers for LLVM tools that the build system expects
+for tool in llvm-ar llvm-nm llvm-readelf llvm-objcopy llvm-strip llvm-readobj; do
+    TOOL_REAL=$(which ${tool} 2>/dev/null || which ar 2>/dev/null)
+    if [[ -n "$TOOL_REAL" ]]; then
+        cat > "${CLANG_DIR}/bin/${tool}" <<TOOLWRAPPER
+#!/bin/bash
+exec "$TOOL_REAL" "\$@"
+TOOLWRAPPER
+        chmod +x "${CLANG_DIR}/bin/${tool}"
+    fi
+done
+echo "Created LLVM tool wrappers"
 
 # Link compiler runtime libraries
 # On Linux, Chromium expects: lib/clang/<ver>/lib/<triple>/libclang_rt.builtins.a
