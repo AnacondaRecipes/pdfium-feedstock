@@ -19,10 +19,11 @@ clone_dep() {
         return
     fi
     echo "  CLONE: $dest @ ${rev:0:12}"
-    git clone --depth 1 "$url" "$dest" 2>/dev/null || {
+    git clone --depth 1 "$url" "$dest" || {
+        echo "  RETRY: shallow clone failed, trying full clone..."
         rm -rf "$dest"
-        git clone "$url" "$dest" 2>/dev/null
-        (cd "$dest" && git checkout "$rev" 2>/dev/null)
+        git clone "$url" "$dest"
+        (cd "$dest" && git checkout "$rev")
     }
 }
 
@@ -116,7 +117,7 @@ clone_dep "third_party/clang-format/script" \
 
 # NASM (for libjpeg-turbo SIMD)
 clone_dep "third_party/nasm" \
-    "$CHROMIUM_GIT/chromium/src/third_party/nasm.git" \
+    "$CHROMIUM_GIT/chromium/deps/nasm.git" \
     "$(get_rev nasm_source)"
 
 echo "=== Dependencies fetched ==="
