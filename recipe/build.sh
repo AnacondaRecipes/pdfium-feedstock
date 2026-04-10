@@ -433,7 +433,8 @@ if [[ "$(uname)" == "Darwin" ]]; then
         out/Release/obj/libpdfium.a
     LIBFILE="libpdfium.dylib"
 else
-    ${CXX:-clang++} -shared -Wl,--whole-archive \
+    echo "Link command: ${CXX:-clang++} -shared -Wl,--whole-archive out/Release/obj/libpdfium.a -Wl,--no-whole-archive -Wl,-soname,libpdfium.so -Wl,--version-script=out/pdfium.version_script -lpthread -lm -ldl -o out/Release/libpdfium.so"
+    ${CXX:-clang++} -v -shared -Wl,--whole-archive \
         out/Release/obj/libpdfium.a \
         -Wl,--no-whole-archive \
         -Wl,-soname,libpdfium.so \
