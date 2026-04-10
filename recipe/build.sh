@@ -487,26 +487,25 @@ ls -lah out/Release/obj/libpdfium.a
 # --- 9. Create shared library from static archive ---
 echo "=== Creating shared library ==="
 
-# Fix hidden HarfBuzz CFF2 symbol in the complete static archive.
-# Use objcopy to globalize the hidden symbol directly in libpdfium.a.
+# Fix hidden HarfBuzz CFF2 symbol. Use objcopy on the individual .o before
+# it gets archived into libpdfium.a. The harfbuzz .o files are at a known path.
 echo "Fixing hidden visibility on HarfBuzz CFF2 symbol..."
 HIDDEN_SYM='_ZNK2OT4cff213accelerator_t11get_extentsEP9hb_font_tjP18hb_glyph_extents_t'
+HB_OBJ="out/Release/obj/third_party/harfbuzz/harfbuzz/hb-ot-cff2-table.o"
 OBJCOPY_BIN=$(which llvm-objcopy 2>/dev/null || which ${OBJCOPY:-objcopy} 2>/dev/null || echo "")
-if [[ -n "$OBJCOPY_BIN" ]]; then
-    echo "Using $OBJCOPY_BIN"
-    mkdir -p out/ar_fix && cd out/ar_fix
-    ar x ../Release/obj/libpdfium.a
-    if [[ -f hb-ot-cff2-table.o ]]; then
-        echo "Before: $(nm hb-ot-cff2-table.o 2>/dev/null | grep get_extents | head -1)"
-        $OBJCOPY_BIN --globalize-symbol="$HIDDEN_SYM" hb-ot-cff2-table.o
-        echo "After:  $(nm hb-ot-cff2-table.o 2>/dev/null | grep get_extents | head -1)"
-        ar rcs ../Release/obj/libpdfium.a *.o
-    else
-        echo "WARNING: hb-ot-cff2-table.o not found in libpdfium.a"
-    fi
-    cd ../.. && rm -rf out/ar_fix
+if [[ -n "$OBJCOPY_BIN" && -f "$HB_OBJ" ]]; then
+    echo "Before: $(nm "$HB_OBJ" 2>/dev/null | grep get_extents | head -1)"
+    $OBJCOPY_BIN --globalize-symbol="$HIDDEN_SYM" "$HB_OBJ"
+    echo "After:  $(nm "$HB_OBJ" 2>/dev/null | grep get_extents | head -1)"
+    # Rebuild the complete static lib with the fixed object
+    echo "Rebuilding libpdfium.a..."
+    ninja -C out/Release obj/libpdfium.a -j1 2>&1 || {
+        # If ninja won't rebuild (no changes detected), force it via ar
+        echo "Replacing object in archive..."
+        (cd out/Release && ar r obj/libpdfium.a obj/third_party/harfbuzz/harfbuzz/hb-ot-cff2-table.o)
+    }
 else
-    echo "WARNING: No objcopy found, skipping symbol fix"
+    echo "WARNING: objcopy=$OBJCOPY_BIN, HB_OBJ exists=$(test -f "$HB_OBJ" && echo yes || echo no)"
 fi
 
 if [[ "$(uname)" == "Darwin" ]]; then
