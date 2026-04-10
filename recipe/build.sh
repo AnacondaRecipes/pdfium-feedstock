@@ -497,31 +497,28 @@ if [[ "$(uname)" == "Darwin" ]]; then
         out/Release/obj/libpdfium.a 2>&1
     LIBFILE="libpdfium.dylib"
 else
-    # Extract objects, recompile the problematic one without hidden visibility,
-    # then repack and link.
-    echo "Fixing hidden visibility on HarfBuzz CFF2 objects..."
-    mkdir -p out/hb_fix
-    cd out/hb_fix
-    ar x ../Release/obj/third_party/harfbuzz/libharfbuzz.a
-    # Check which object has the hidden symbol
-    nm -C hb-ot-cff2-table.o 2>/dev/null | grep get_extents | head -3 || true
-    # Use objcopy to globalize the hidden symbol
-    if command -v llvm-objcopy &>/dev/null; then
-        OBJCOPY=llvm-objcopy
-    elif command -v objcopy &>/dev/null; then
-        OBJCOPY=objcopy
+    # Fix hidden HarfBuzz CFF2 symbol in the complete static archive.
+    # Use objcopy to globalize the hidden symbol directly in libpdfium.a.
+    echo "Fixing hidden visibility on HarfBuzz CFF2 symbol..."
+    HIDDEN_SYM='_ZNK2OT4cff213accelerator_t11get_extentsEP9hb_font_tjP18hb_glyph_extents_t'
+    OBJCOPY_BIN=$(which llvm-objcopy 2>/dev/null || which ${OBJCOPY:-objcopy} 2>/dev/null || echo "")
+    if [[ -n "$OBJCOPY_BIN" ]]; then
+        echo "Using $OBJCOPY_BIN"
+        mkdir -p out/ar_fix && cd out/ar_fix
+        ar x ../Release/obj/libpdfium.a
+        if [[ -f hb-ot-cff2-table.o ]]; then
+            echo "Before: $(nm hb-ot-cff2-table.o 2>/dev/null | grep get_extents | head -1)"
+            $OBJCOPY_BIN --globalize-symbol="$HIDDEN_SYM" hb-ot-cff2-table.o
+            echo "After:  $(nm hb-ot-cff2-table.o 2>/dev/null | grep get_extents | head -1)"
+            ar rcs ../Release/obj/libpdfium.a *.o
+        else
+            echo "WARNING: hb-ot-cff2-table.o not found in libpdfium.a"
+            ls *.o | grep -i cff || echo "No cff objects found"
+        fi
+        cd ../.. && rm -rf out/ar_fix
     else
-        OBJCOPY=$(which ${OBJCOPY:-objcopy} 2>/dev/null || echo "")
+        echo "WARNING: No objcopy found, skipping symbol fix"
     fi
-    if [[ -n "$OBJCOPY" ]]; then
-        echo "Using $OBJCOPY to globalize hidden symbols"
-        $OBJCOPY --globalize-symbol='_ZNK2OT4cff213accelerator_t11get_extentsEP9hb_font_tjP18hb_glyph_extents_t' \
-            hb-ot-cff2-table.o hb-ot-cff2-table.o 2>/dev/null || true
-    fi
-    # Repack harfbuzz archive
-    ar rcs ../Release/obj/third_party/harfbuzz/libharfbuzz.a *.o
-    cd ../..
-    rm -rf out/hb_fix
 
     ${CXX:-clang++} -shared -Wl,--whole-archive \
         out/Release/obj/libpdfium.a \
