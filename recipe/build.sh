@@ -65,8 +65,24 @@ print('Patched build_native.py')
 "
 
 python3 -c "
-import build_native
-# DefaultConfig already disables v8, xfa, skia, glib, partition_alloc
+import build_native, pathlib
+
+# Monkey-patch the build function to create stubs before gn gen
+_orig_build = build_native.build
+def patched_build(config, *args, **kwargs):
+    # Create stubs for test-only deps (GN parses all BUILD.gn files)
+    pdfium_dir = build_native.PDFIUM_DIR
+    for name, content in [
+        ('third_party/test_fonts', 'group(\"test_fonts\") { testonly = true }'),
+        ('third_party/simdutf', 'group(\"simdutf\") {}'),
+    ]:
+        d = pdfium_dir / name
+        d.mkdir(parents=True, exist_ok=True)
+        (d / 'BUILD.gn').write_text(content)
+    print('Created BUILD.gn stubs for test_fonts and simdutf')
+    return _orig_build(config, *args, **kwargs)
+build_native.build = patched_build
+
 build_native.main(build_ver=${PKG_VERSION})
 "
 
