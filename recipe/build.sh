@@ -48,9 +48,14 @@ echo "Ninja: $(ninja --version)"
 # Run pypdfium2's native build system
 # It clones pdfium source, fetches deps from DEPS file, configures GN, builds with ninja
 echo "=== Running build_native.py ==="
-# Remove legacy_gn.patch — it patches out path_exists() calls for old GN,
-# but our GN (v2342+) supports path_exists() natively, so the patch conflicts.
-rm -f "$SRC_DIR/patches/legacy_gn.patch"
+# Neutralize legacy_gn.patch — build_native.py unconditionally git-applies it,
+# but our GN (v2342+) supports path_exists() natively so the original patch conflicts.
+python3 -c "
+with open('$SRC_DIR/setupsrc/build_native.py') as f: c = f.read()
+c = c.replace('git_apply_patch(PatchDir/\"legacy_gn.patch\"', 'pass  # skip legacy_gn.patch (new GN)  #')
+with open('$SRC_DIR/setupsrc/build_native.py', 'w') as f: f.write(c)
+print('Patched out legacy_gn.patch from build_native.py')
+"
 
 python3 -c "
 import build_native
