@@ -138,6 +138,8 @@ if [[ "$(uname)" == "Linux" ]]; then
         mkdir -p "$BUILTINS_DIR"
         BUILTINS=$(find "${BUILD_PREFIX}/lib" "${PREFIX}/lib" -name "libclang_rt.builtins*.a" -path "*/clang/*" 2>/dev/null | head -1 || true)
         if [[ -n "$BUILTINS" ]]; then
+            # Chromium expects libclang_rt.builtins.a (no arch suffix)
+            ln -sf "$BUILTINS" "${BUILTINS_DIR}/libclang_rt.builtins.a"
             for lib in "$(dirname "$BUILTINS")"/libclang_rt.*.a; do
                 ln -sf "$lib" "${BUILTINS_DIR}/$(basename "$lib")" 2>/dev/null || true
             done
