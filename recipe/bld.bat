@@ -35,6 +35,10 @@ echo build_with_chromium = false> build\config\gclient_args.gni
 echo checkout_android = false>> build\config\gclient_args.gni
 echo checkout_skia = false>> build\config\gclient_args.gni
 
+:: LASTCHANGE.committime needed by compute_build_timestamp.py
+mkdir build\util 2>nul
+python -c "import time; print(int(time.time()))" > build\util\LASTCHANGE.committime
+
 mkdir third_party\test_fonts 2>nul
 echo group("test_fonts") { testonly = true }> third_party\test_fonts\BUILD.gn
 mkdir third_party\simdutf 2>nul
