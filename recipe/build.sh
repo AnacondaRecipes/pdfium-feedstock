@@ -127,18 +127,20 @@ for tool in llvm-ar llvm-nm llvm-readelf llvm-objcopy llvm-strip llvm-readobj; d
     fi
 done
 
-# Link compiler runtime libraries (builtins)
-if [[ "$(uname)" == "Linux" ]]; then
-    CLANG_LIB_DIR=$(find "${BUILD_PREFIX}/lib/clang" "${PREFIX}/lib/clang" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | sort -V | tail -1 || true)
-    if [[ -n "$CLANG_LIB_DIR" ]]; then
-        mkdir -p "${CLANG_DIR}/lib/clang/${CLANG_MAJOR}"
-        ln -sf "$CLANG_LIB_DIR/lib" "${CLANG_DIR}/lib/clang/${CLANG_MAJOR}/lib" 2>/dev/null || true
+# Link compiler runtime libraries
+CLANG_LIB_DIR=$(find "${BUILD_PREFIX}/lib/clang" "${PREFIX}/lib/clang" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | sort -V | tail -1 || true)
+if [[ -n "$CLANG_LIB_DIR" ]]; then
+    mkdir -p "${CLANG_DIR}/lib/clang/${CLANG_MAJOR}"
+    # Symlink the entire lib tree (covers both linux/<triple>/ and darwin/ layouts)
+    ln -sf "$CLANG_LIB_DIR/lib" "${CLANG_DIR}/lib/clang/${CLANG_MAJOR}/lib" 2>/dev/null || true
+
+    if [[ "$(uname)" == "Linux" ]]; then
+        # Linux: also create triple-specific dir with arch-less builtins symlink
         TRIPLE=$(echo "$($CC -dumpmachine)" | sed 's/-conda-/-unknown-/')
         BUILTINS_DIR="${CLANG_DIR}/lib/clang/${CLANG_MAJOR}/lib/${TRIPLE}"
         mkdir -p "$BUILTINS_DIR"
         BUILTINS=$(find "${BUILD_PREFIX}/lib" "${PREFIX}/lib" -name "libclang_rt.builtins*.a" -path "*/clang/*" 2>/dev/null | head -1 || true)
         if [[ -n "$BUILTINS" ]]; then
-            # Chromium expects libclang_rt.builtins.a (no arch suffix)
             ln -sf "$BUILTINS" "${BUILTINS_DIR}/libclang_rt.builtins.a"
             for lib in "$(dirname "$BUILTINS")"/libclang_rt.*.a; do
                 ln -sf "$lib" "${BUILTINS_DIR}/$(basename "$lib")" 2>/dev/null || true
