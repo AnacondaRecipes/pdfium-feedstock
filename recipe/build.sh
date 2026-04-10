@@ -373,13 +373,13 @@ if old_str in content:
 # Must remove both the define AND the conditional removal (defines -= [...])
 content = content.replace('"HB_NO_SUBSET_CFF",\n', '')
 content = content.replace('defines -= [ "HB_NO_SUBSET_CFF" ]', '# Patched: HB_NO_SUBSET_CFF removed globally')
-# Also add HB_NO_VISIBILITY to disable __attribute__((visibility("hidden")))
-# on HB_INTERNAL symbols (e.g., cff2::accelerator_t::get_extents)
+# Add HB_NO_VISIBILITY to disable HB_INTERNAL __attribute__((visibility("hidden")))
+# Also redefine HB_INTERNAL to empty via compiler define to override hb.hh
 content = content.replace(
     '"HAVE_OT",',
-    '"HAVE_OT", "HB_NO_VISIBILITY",'
+    '"HAVE_OT", "HB_NO_VISIBILITY=1", "HB_INTERNAL=",'
 )
-print('Patched HarfBuzz BUILD.gn: removed HB_NO_SUBSET_CFF, added HB_NO_VISIBILITY')
+print('Patched HarfBuzz BUILD.gn: removed HB_NO_SUBSET_CFF, added HB_NO_VISIBILITY + HB_INTERNAL=')
 with open('third_party/harfbuzz/BUILD.gn', 'w') as f:
     f.write(content)
 
