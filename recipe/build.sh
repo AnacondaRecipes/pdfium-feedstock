@@ -368,13 +368,16 @@ old_str = 'if (is_component_build) {'
 if old_str in content:
     content = content.replace(old_str, 'if (true) {  # Patched: always export HarfBuzz symbols', 1)
     print('Patched HarfBuzz BUILD.gn: is_component_build -> true')
+# Remove HB_NO_SUBSET_CFF — it disables CFF2 code but hb-subset-plan-var.cc
+# still references cff2::accelerator_t::get_extents, causing undefined symbol.
+content = content.replace('"HB_NO_SUBSET_CFF",\n', '')
 # Also add HB_NO_VISIBILITY to disable __attribute__((visibility("hidden")))
 # on HB_INTERNAL symbols (e.g., cff2::accelerator_t::get_extents)
 content = content.replace(
     '"HAVE_OT",',
     '"HAVE_OT", "HB_NO_VISIBILITY",'
 )
-print('Patched HarfBuzz BUILD.gn: added HB_NO_VISIBILITY define')
+print('Patched HarfBuzz BUILD.gn: removed HB_NO_SUBSET_CFF, added HB_NO_VISIBILITY')
 with open('third_party/harfbuzz/BUILD.gn', 'w') as f:
     f.write(content)
 
