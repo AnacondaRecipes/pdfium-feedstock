@@ -52,9 +52,16 @@ echo "=== Running build_native.py ==="
 # but our GN (v2342+) supports path_exists() natively so the original patch conflicts.
 python3 -c "
 with open('$SRC_DIR/setupsrc/build_native.py') as f: c = f.read()
-c = c.replace('git_apply_patch(PatchDir/\"legacy_gn.patch\"', 'pass  # skip legacy_gn.patch (new GN)  #')
+# Skip legacy_gn.patch (our GN supports path_exists())
+c = c.replace('git_apply_patch(PatchDir/\"legacy_gn.patch\"', 'pass  # skip legacy_gn.patch  #')
+# Fix gclient_args.gni: build_native.py creates it empty, but pdfium 7776
+# needs build_with_chromium defined (referenced in clang.gni)
+c = c.replace(
+    '(PDFIUM_DIR_build/\"config\"/\"gclient_args.gni\").touch(exist_ok=True)',
+    '(PDFIUM_DIR_build/\"config\"/\"gclient_args.gni\").write_text(\"build_with_chromium = false\\\\ncheckout_android = false\\\\ncheckout_skia = false\\\\n\")'
+)
 with open('$SRC_DIR/setupsrc/build_native.py', 'w') as f: f.write(c)
-print('Patched out legacy_gn.patch from build_native.py')
+print('Patched build_native.py')
 "
 
 python3 -c "
