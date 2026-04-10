@@ -75,7 +75,14 @@ echo === Applying patches ===
 python "%RECIPE_DIR%\apply_patches.py"
 if errorlevel 1 exit /b 1
 
-:: --- 6. Configure GN ---
+:: --- 6. Ensure python3 is available (Windows has python.exe, not python3.exe) ---
+where python3 >nul 2>&1 || (
+    echo Creating python3 alias...
+    copy "%PYTHON%" "%PREFIX%\python3.exe" >nul 2>&1
+    copy "%PYTHON%" "%BUILD_PREFIX%\python3.exe" >nul 2>&1
+)
+
+:: --- 7. Configure GN ---
 echo === Configuring build ===
 mkdir out\Release 2>nul
 (
