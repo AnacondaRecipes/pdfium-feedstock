@@ -83,8 +83,8 @@ def patched_build(config, *args, **kwargs):
     return _orig_build(config, *args, **kwargs)
 build_native.build = patched_build
 
-# Vendor all deps (ICU, freetype, libjpeg, etc.) — no system libs available in conda build
-build_native.main(build_ver=${PKG_VERSION}, vendor_deps={'icu', 'freetype', 'libjpeg'})
+# Vendor ALL deps — no system -dev packages available in conda build env
+build_native.main(build_ver=${PKG_VERSION}, vendor_deps={'icu', 'freetype', 'libjpeg', 'libpng', 'zlib', 'lcms2', 'openjpeg'})
 "
 
 # Find the built static library
