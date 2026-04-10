@@ -72,7 +72,7 @@ echo CLANG_SUB_REVISION = 0
 
 :: --- 5. Apply patches ---
 echo === Applying patches ===
-python -c "exec(open('%RECIPE_DIR%\\apply_patches.py').read())"
+python "%RECIPE_DIR%\apply_patches.py"
 if errorlevel 1 exit /b 1
 
 :: --- 6. Configure GN ---
