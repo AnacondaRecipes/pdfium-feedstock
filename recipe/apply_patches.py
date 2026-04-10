@@ -45,4 +45,17 @@ if os.uname().sysname == 'Linux' if hasattr(os, 'uname') else False:
         f.write(c)
 
 
+# Windows: patch vs_toolchain.py to not fail on missing runtime DLLs
+if os.name == 'nt' and os.path.exists('build/vs_toolchain.py'):
+    with open('build/vs_toolchain.py', 'r') as f:
+        c = f.read()
+    # Make copy_dlls failures non-fatal (DLLs might not all exist on CI)
+    c = c.replace(
+        "shutil.copy2(dll, target_dir)",
+        "try:\n        shutil.copy2(dll, target_dir)\n      except FileNotFoundError:\n        print(f'Warning: {dll} not found, skipping')"
+    )
+    with open('build/vs_toolchain.py', 'w') as f:
+        f.write(c)
+    print('Patched vs_toolchain.py: copy_dlls failures non-fatal')
+
 print('All patches applied')
