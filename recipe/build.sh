@@ -135,14 +135,23 @@ else
 fi
 
 echo "Downloading GN for ${GN_PLATFORM}..."
-# Use python instead of curl to avoid dyld symbol issues on macOS
-# (conda curl can conflict with system libcurl)
+# Use python instead of curl to avoid dyld symbol issues on macOS.
+# Includes retry logic for transient 503 errors from Google CIPD.
 python3 -c "
-import urllib.request, sys
+import urllib.request, time, sys
 url = 'https://chrome-infra-packages.appspot.com/dl/gn/gn/${GN_PLATFORM}/+/git_revision:${GN_REV}'
-print(f'Fetching: {url}')
-urllib.request.urlretrieve(url, 'gn.zip')
-print('Downloaded gn.zip')
+for attempt in range(5):
+    try:
+        print(f'Fetching (attempt {attempt+1}): {url}')
+        urllib.request.urlretrieve(url, 'gn.zip')
+        print('Downloaded gn.zip')
+        break
+    except Exception as e:
+        print(f'Download failed: {e}')
+        if attempt < 4:
+            time.sleep(5 * (attempt + 1))
+        else:
+            raise
 "
 unzip -oq gn.zip -d gn_bin
 chmod +x gn_bin/gn
