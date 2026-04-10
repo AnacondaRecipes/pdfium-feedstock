@@ -44,4 +44,19 @@ if os.uname().sysname == 'Linux' if hasattr(os, 'uname') else False:
     with open('build/config/linux/BUILD.gn', 'w') as f:
         f.write(c)
 
+# Windows: patch vs_toolchain.py to skip depot_tools dependency
+# Chromium's vs_toolchain.py imports find_depot_tools which requires breakpad.
+# We patch it to directly return the VS path from GYP_MSVS_OVERRIDE_PATH.
+if os.name == 'nt' and os.path.exists('build/vs_toolchain.py'):
+    with open('build/vs_toolchain.py', 'r') as f:
+        c = f.read()
+    # Replace the Update() function that tries to import depot_tools
+    c = c.replace(
+        'import find_depot_tools',
+        '# Patched: skip depot_tools\nclass _FakeModule: pass\nfind_depot_tools = _FakeModule()\nfind_depot_tools.add_depot_tools_to_path = lambda: None'
+    )
+    with open('build/vs_toolchain.py', 'w') as f:
+        f.write(c)
+    print('Patched vs_toolchain.py: skipped depot_tools import')
+
 print('All patches applied')
