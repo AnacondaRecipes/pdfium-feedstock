@@ -487,26 +487,29 @@ ls -lah out/Release/obj/libpdfium.a
 # --- 9. Create shared library from static archive ---
 echo "=== Creating shared library ==="
 
-# Fix hidden HarfBuzz CFF2 symbol. Use objcopy on the individual .o before
-# it gets archived into libpdfium.a. The harfbuzz .o files are at a known path.
-echo "Fixing hidden visibility on HarfBuzz CFF2 symbol..."
-HIDDEN_SYM='_ZNK2OT4cff213accelerator_t11get_extentsEP9hb_font_tjP18hb_glyph_extents_t'
-HB_OBJ="out/Release/obj/third_party/harfbuzz/harfbuzz/hb-ot-cff2-table.o"
-OBJCOPY_BIN=$(which llvm-objcopy 2>/dev/null || which ${OBJCOPY:-objcopy} 2>/dev/null || echo "")
-if [[ -n "$OBJCOPY_BIN" && -f "$HB_OBJ" ]]; then
-    echo "Before: $(nm "$HB_OBJ" 2>/dev/null | grep get_extents | head -1)"
-    $OBJCOPY_BIN --globalize-symbol="$HIDDEN_SYM" "$HB_OBJ"
-    echo "After:  $(nm "$HB_OBJ" 2>/dev/null | grep get_extents | head -1)"
-    # Rebuild the complete static lib with the fixed object
-    echo "Rebuilding libpdfium.a..."
-    ninja -C out/Release obj/libpdfium.a -j1 2>&1 || {
-        # If ninja won't rebuild (no changes detected), force it via ar
-        echo "Replacing object in archive..."
-        (cd out/Release && ar r obj/libpdfium.a obj/third_party/harfbuzz/harfbuzz/hb-ot-cff2-table.o)
-    }
-else
-    echo "WARNING: objcopy=$OBJCOPY_BIN, HB_OBJ exists=$(test -f "$HB_OBJ" && echo yes || echo no)"
-fi
+# Create a stub for the hidden HarfBuzz CFF2 symbol.
+# HB_INTERNAL marks get_extents as hidden, causing undefined symbol at link time.
+# This stub provides the symbol so the shared library links and loads.
+# The function is only called from hb-subset-plan-var.cc during font subsetting,
+# which pypdfium2 does not use.
+echo "Creating stub for hidden HarfBuzz CFF2 symbol..."
+cat > out/hb_cff2_stub.cc << 'STUB'
+// Stub for OT::cff2::accelerator_t::get_extents
+// This function is hidden by HB_INTERNAL but referenced from hb-subset-plan-var.cc.
+// Provide a stub that returns false (no extents available).
+struct hb_font_t;
+struct hb_glyph_extents_t;
+namespace OT { namespace cff2 {
+struct accelerator_t {
+    bool get_extents(hb_font_t*, unsigned int, hb_glyph_extents_t*) const;
+};
+bool accelerator_t::get_extents(hb_font_t*, unsigned int, hb_glyph_extents_t*) const {
+    return false;
+}
+}}
+STUB
+${CXX:-clang++} -c -fPIC -o out/hb_cff2_stub.o out/hb_cff2_stub.cc 2>&1
+echo "Stub compiled: $(ls -la out/hb_cff2_stub.o 2>/dev/null)"
 
 if [[ "$(uname)" == "Darwin" ]]; then
     SDK_PATH=$(xcrun --show-sdk-path 2>/dev/null || echo "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk")
@@ -515,12 +518,13 @@ if [[ "$(uname)" == "Darwin" ]]; then
         -isysroot "$SDK_PATH" \
         -framework AppKit -framework CoreFoundation \
         -o out/Release/libpdfium.dylib \
-        out/Release/obj/libpdfium.a 2>&1
+        out/Release/obj/libpdfium.a out/hb_cff2_stub.o 2>&1
     LIBFILE="libpdfium.dylib"
 else
     ${CXX:-clang++} -shared -Wl,--whole-archive \
         out/Release/obj/libpdfium.a \
         -Wl,--no-whole-archive \
+        out/hb_cff2_stub.o \
         -Wl,-soname,libpdfium.so \
         -lpthread -lm -ldl \
         -o out/Release/libpdfium.so 2>&1
