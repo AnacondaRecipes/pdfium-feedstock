@@ -25,25 +25,8 @@ python -c "import re; d=open('DEPS').read(); m=re.search(r'git_revision:([a-f0-9
 set /p GN_REV=<_gn_rev.txt
 
 echo Downloading GN for windows...
-python -c "import urllib.request,time,sys; url='https://chrome-infra-packages.appspot.com/dl/gn/gn/windows-amd64/+/git_revision:%GN_REV%'; [(urllib.request.urlretrieve(url,'gn.zip'),sys.exit(0)) for _ in range(1)]" 2>nul
-if exist gn.zip (
-    python -c "import zipfile; zipfile.ZipFile('gn.zip').extractall('gn_bin')"
-) else (
-    echo CIPD unavailable, building GN from source...
-    git clone https://gn.googlesource.com/gn.git gn_src
-    if errorlevel 1 (
-        echo Trying Python HTTPS clone for GN...
-        python -c "import urllib.request; urllib.request.urlretrieve('https://gn.googlesource.com/gn/+archive/refs/heads/main.tar.gz','gn_src.tar.gz')"
-        mkdir gn_src
-        python -c "import tarfile; tarfile.open('gn_src.tar.gz').extractall('gn_src')"
-    )
-    cd gn_src
-    python build\gen.py --allow-warnings
-    ninja -C out gn
-    cd ..
-    mkdir gn_bin 2>nul
-    copy gn_src\out\gn.exe gn_bin\gn.exe
-)
+python %RECIPE_DIR%\download_gn.py %GN_REV%
+if errorlevel 1 exit /b 1
 set PATH=%CD%\gn_bin;%PATH%
 gn --version
 
