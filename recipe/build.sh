@@ -159,9 +159,16 @@ if [[ "$GN_DOWNLOADED" == "true" ]]; then
 else
     echo "CIPD unavailable, building GN from source..."
     git clone https://gn.googlesource.com/gn.git gn_src
+    # On macOS, lower deployment target to match available SDK
+    GN_EXTRA_FLAGS=""
+    if [[ "$(uname)" == "Darwin" ]]; then
+        export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
+        GN_EXTRA_FLAGS="--no-static-libstdc++ --no-strip"
+    fi
     (cd gn_src && \
      CC="${CC:-cc}" CXX="${CXX:-c++}" AR="${AR:-ar}" \
-     python3 build/gen.py --allow-warnings && \
+     LDFLAGS="${LDFLAGS:-}" \
+     python3 build/gen.py --allow-warnings ${GN_EXTRA_FLAGS} && \
      ninja -C out gn)
     mkdir -p gn_bin
     cp gn_src/out/gn gn_bin/gn
