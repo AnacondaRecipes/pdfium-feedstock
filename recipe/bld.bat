@@ -82,7 +82,25 @@ if errorlevel 1 (
     for /f "delims=" %%P in ('where python 2^>nul') do if not exist "%%~dpPpython3.exe" copy "%%P" "%%~dpPpython3.exe" >nul
 )
 
-:: --- 7. Configure GN ---
+:: --- 7. Set up Visual Studio for GN ---
+:: GN's vs_toolchain.py needs GYP_MSVS_OVERRIDE_PATH
+if defined VS2022INSTALLDIR (
+    set "GYP_MSVS_OVERRIDE_PATH=%VS2022INSTALLDIR%"
+    set "GYP_MSVS_VERSION=2022"
+) else if defined VS2019INSTALLDIR (
+    set "GYP_MSVS_OVERRIDE_PATH=%VS2019INSTALLDIR%"
+    set "GYP_MSVS_VERSION=2019"
+)
+echo GYP_MSVS_OVERRIDE_PATH=%GYP_MSVS_OVERRIDE_PATH%
+
+:: Also set WINDOWSSDKDIR if not already set
+if not defined WINDOWSSDKDIR (
+    if exist "C:\Program Files (x86)\Windows Kits\10" (
+        set "WINDOWSSDKDIR=C:\Program Files (x86)\Windows Kits\10"
+    )
+)
+
+:: --- 8. Configure GN ---
 echo === Configuring build ===
 mkdir out\Release 2>nul
 (
