@@ -158,7 +158,7 @@ if [[ "$GN_DOWNLOADED" == "true" ]]; then
     chmod +x gn_bin/gn
 else
     echo "CIPD unavailable, building GN from source..."
-    git clone --depth 1 https://gn.googlesource.com/gn.git gn_src
+    git clone https://gn.googlesource.com/gn.git gn_src
     (cd gn_src && \
      CC="${CC:-cc}" CXX="${CXX:-c++}" AR="${AR:-ar}" \
      python3 build/gen.py --allow-warnings && \
