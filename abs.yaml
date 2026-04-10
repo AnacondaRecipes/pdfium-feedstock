@@ -1,4 +1,4 @@
 build_parameters:
   - "--error-overlinking"
 
-staging_channel_upload_target: pdfium-7776-staging
+staging_channel_upload_target: pdfium-7776-cf-staging

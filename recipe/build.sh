@@ -49,45 +49,70 @@ echo "Ninja: $(ninja --version)"
 # It clones pdfium source, fetches deps from DEPS file, configures GN, builds with ninja
 echo "=== Running build_native.py ==="
 python3 -c "
-import build_native, base
-# Build pdfium at the pinned version
-build_native.main(
-    build_ver=${PKG_VERSION},
-    gn_args='pdf_enable_v8=false pdf_enable_xfa=false pdf_use_skia=false pdf_use_partition_alloc=false pdf_bundle_freetype=true use_glib=false',
-)
+import build_native
+# DefaultConfig already disables v8, xfa, skia, glib, partition_alloc
+build_native.main(build_ver=${PKG_VERSION})
 "
 
-# Find the built library
-PDFIUM_DIR="$SRC_DIR/data/sourcebuild-native"
-echo "Build output:"
-ls -lh "$PDFIUM_DIR/" 2>/dev/null || true
-find "$SRC_DIR" -name "libpdfium.*" -type f 2>/dev/null | head -5
+# Find the built static library
+PDFIUM_SRC_DIR=$(find "$SRC_DIR" -name "pdfium" -type d -path "*/pdfium" | head -1)
+STATIC_LIB=$(find "$SRC_DIR" -name "libpdfium.a" -type f | head -1)
+echo "Pdfium source: $PDFIUM_SRC_DIR"
+echo "Static lib: $STATIC_LIB"
+
+if [[ -z "$STATIC_LIB" ]]; then
+    echo "ERROR: libpdfium.a not found"
+    find "$SRC_DIR" -name "*pdfium*" -type f 2>/dev/null | head -10
+    exit 1
+fi
+
+# --- Create shared library (same approach as PR#2) ---
+echo "=== Creating shared library ==="
+
+# Stub for hidden HarfBuzz CFF2 symbol (HB_INTERNAL visibility)
+cat > /tmp/hb_cff2_stub.cc << 'STUB'
+struct hb_font_t;
+struct hb_glyph_extents_t;
+namespace OT { namespace cff2 {
+struct accelerator_t {
+    bool get_extents(hb_font_t*, unsigned int, hb_glyph_extents_t*) const;
+};
+bool accelerator_t::get_extents(hb_font_t*, unsigned int, hb_glyph_extents_t*) const {
+    return false;
+}
+}}
+STUB
+${CXX:-clang++} -c -fPIC -o /tmp/hb_cff2_stub.o /tmp/hb_cff2_stub.cc
+
+if [[ "$(uname)" == "Darwin" ]]; then
+    SDK_PATH=$(xcrun --show-sdk-path 2>/dev/null || echo "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk")
+    ${CXX:-clang++} -shared -all_load \
+        -Wl,-install_name,@rpath/libpdfium.dylib \
+        -isysroot "$SDK_PATH" \
+        -framework AppKit -framework CoreFoundation \
+        -o "${STATIC_LIB%.a}.dylib" \
+        "$STATIC_LIB" /tmp/hb_cff2_stub.o 2>&1
+    LIBFILE="${STATIC_LIB%.a}.dylib"
+else
+    ${CXX:-clang++} -shared -Wl,--whole-archive \
+        "$STATIC_LIB" \
+        -Wl,--no-whole-archive \
+        /tmp/hb_cff2_stub.o \
+        -Wl,-soname,libpdfium.so \
+        -lpthread -lm -ldl \
+        -o "${STATIC_LIB%.a}.so" 2>&1
+    LIBFILE="${STATIC_LIB%.a}.so"
+fi
+echo "Shared library: $(ls -lh "$LIBFILE")"
 
 # --- Install ---
 echo "=== Installing ==="
 mkdir -p "$PREFIX/lib" "$PREFIX/include"
+install -m 0755 "$LIBFILE" "$PREFIX/lib/$(basename "$LIBFILE")"
 
-# Install shared library
-if [[ "$(uname)" == "Darwin" ]]; then
-    LIBFILE=$(find "$SRC_DIR" -name "libpdfium.dylib" -type f | head -1)
-else
-    LIBFILE=$(find "$SRC_DIR" -name "libpdfium.so" -type f | head -1)
-fi
-
-if [[ -z "$LIBFILE" ]]; then
-    echo "ERROR: libpdfium not found. Checking build artifacts..."
-    find "$SRC_DIR" -name "libpdfium*" -type f 2>/dev/null
-    find "$SRC_DIR" -name "pdfium*" -type f 2>/dev/null | head -10
-    exit 1
-fi
-
-echo "Installing $LIBFILE"
-install -m 0755 "$LIBFILE" "$PREFIX/lib/"
-
-# Install headers from the pdfium source checkout
-PDFIUM_SRC=$(find "$SRC_DIR" -name "fpdfview.h" -path "*/public/*" -type f | head -1)
-if [[ -n "$PDFIUM_SRC" ]]; then
-    HEADER_DIR=$(dirname "$PDFIUM_SRC")
+# Install headers
+HEADER_DIR=$(find "$PDFIUM_SRC_DIR" -name "fpdfview.h" -path "*/public/*" -type f -exec dirname {} \; | head -1)
+if [[ -n "$HEADER_DIR" ]]; then
     for header in "$HEADER_DIR"/fpdf*.h; do
         install -m 0644 "$header" "$PREFIX/include/"
     done
