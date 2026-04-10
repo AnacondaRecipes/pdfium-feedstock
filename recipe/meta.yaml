@@ -11,7 +11,7 @@ source:
 
 build:
   number: 0
-  skip: True  # [win or (linux and (s390x or ppc64le))]
+  skip: True  # [linux and (s390x or ppc64le)]
   run_exports:
     - {{ pin_subpackage(name, max_pin='x') }}
   missing_dso_whitelist:                            # [linux]
@@ -35,9 +35,10 @@ requirements:
     - {{ stdlib('c') }}
     - ninja-base
     - python
-    - curl
-    - unzip
+    - curl                             # [unix]
+    - unzip                            # [unix]
     - git
+    - m2-patch                         # [win]
 
 {% set headers = [
     "fpdf_annot.h",
@@ -66,14 +67,18 @@ requirements:
 
 test:
   commands:
-    - test -f $PREFIX/lib/libpdfium.dylib                  # [osx]
-    - test -f $PREFIX/lib/libpdfium.so                     # [linux]
+    - test -f $PREFIX/lib/libpdfium.dylib                         # [osx]
+    - test -f $PREFIX/lib/libpdfium.so                            # [linux]
+    - if not exist "%LIBRARY_BIN%\\pdfium.dll" exit 1             # [win]
+    - if not exist "%LIBRARY_LIB%\\pdfium.dll.lib" exit 1         # [win]
     {% for each_header in headers %}
-    - test -f "${PREFIX}/include/{{ each_header }}"        # [unix]
+    - test -f "${PREFIX}/include/{{ each_header }}"               # [unix]
+    - if not exist "%LIBRARY_INC%\\{{ each_header }}" exit 1      # [win]
     {% endfor %}
     - python -c "import ctypes; ctypes.CDLL('${PREFIX}/lib/libpdfium${SHLIB_EXT}')"  # [unix]
-  requires:                                                # [unix]
-    - python                                               # [unix]
+    - python -c "import ctypes; ctypes.CDLL('pdfium.dll')"        # [win]
+  requires:
+    - python
 
 about:
   home: https://pdfium.googlesource.com/pdfium/
