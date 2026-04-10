@@ -83,6 +83,8 @@ if errorlevel 1 (
 )
 
 :: --- 7. Set up Visual Studio for GN ---
+:: Skip depot_tools toolchain — use system VS directly
+set "DEPOT_TOOLS_WIN_TOOLCHAIN=0"
 :: GN's vs_toolchain.py needs GYP_MSVS_OVERRIDE_PATH
 if defined VS2022INSTALLDIR (
     set "GYP_MSVS_OVERRIDE_PATH=%VS2022INSTALLDIR%"
