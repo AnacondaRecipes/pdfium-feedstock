@@ -364,11 +364,18 @@ with open('build/config/sanitizers/sanitizers.gni', 'w') as f:
 # HarfBuzz CFF2 has cross-object hidden symbol refs that fail at shared lib link time.
 with open('third_party/harfbuzz/BUILD.gn', 'r') as f:
     content = f.read()
-content = content.replace(
-    'if (is_component_build) {',
-    'if (true) {  # Patched: always export HarfBuzz symbols for shared lib',
-    1  # only replace the first occurrence (the HB_EXTERN block)
-)
+old_str = 'if (is_component_build) {'
+if old_str not in content:
+    print(f'WARNING: Could not find "{old_str}" in third_party/harfbuzz/BUILD.gn')
+    print(f'File size: {len(content)} bytes')
+    # Show the context around HB_EXTERN
+    import re
+    for m in re.finditer(r'HB_EXTERN|is_component', content):
+        start = max(0, m.start()-50)
+        print(f'  ...{content[start:m.end()+50]}...')
+else:
+    content = content.replace(old_str, 'if (true) {  # Patched: always export HarfBuzz symbols', 1)
+    print(f'Patched HarfBuzz BUILD.gn: is_component_build -> true')
 with open('third_party/harfbuzz/BUILD.gn', 'w') as f:
     f.write(content)
 
