@@ -365,17 +365,16 @@ with open('build/config/sanitizers/sanitizers.gni', 'w') as f:
 with open('third_party/harfbuzz/BUILD.gn', 'r') as f:
     content = f.read()
 old_str = 'if (is_component_build) {'
-if old_str not in content:
-    print(f'WARNING: Could not find "{old_str}" in third_party/harfbuzz/BUILD.gn')
-    print(f'File size: {len(content)} bytes')
-    # Show the context around HB_EXTERN
-    import re
-    for m in re.finditer(r'HB_EXTERN|is_component', content):
-        start = max(0, m.start()-50)
-        print(f'  ...{content[start:m.end()+50]}...')
-else:
+if old_str in content:
     content = content.replace(old_str, 'if (true) {  # Patched: always export HarfBuzz symbols', 1)
-    print(f'Patched HarfBuzz BUILD.gn: is_component_build -> true')
+    print('Patched HarfBuzz BUILD.gn: is_component_build -> true')
+# Also add HB_NO_VISIBILITY to disable __attribute__((visibility("hidden")))
+# on HB_INTERNAL symbols (e.g., cff2::accelerator_t::get_extents)
+content = content.replace(
+    '"HAVE_OT",',
+    '"HAVE_OT", "HB_NO_VISIBILITY",'
+)
+print('Patched HarfBuzz BUILD.gn: added HB_NO_VISIBILITY define')
 with open('third_party/harfbuzz/BUILD.gn', 'w') as f:
     f.write(content)
 
