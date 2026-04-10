@@ -496,12 +496,36 @@ if [[ "$(uname)" == "Darwin" ]]; then
         out/Release/obj/libpdfium.a 2>&1
     LIBFILE="libpdfium.dylib"
 else
-    # Use -Bsymbolic to resolve hidden internal symbols within the shared lib
+    # Extract objects, recompile the problematic one without hidden visibility,
+    # then repack and link.
+    echo "Fixing hidden visibility on HarfBuzz CFF2 objects..."
+    mkdir -p out/hb_fix
+    cd out/hb_fix
+    ar x ../Release/obj/third_party/harfbuzz/libharfbuzz.a
+    # Check which object has the hidden symbol
+    nm -C hb-ot-cff2-table.o 2>/dev/null | grep get_extents | head -3 || true
+    # Use objcopy to globalize the hidden symbol
+    if command -v llvm-objcopy &>/dev/null; then
+        OBJCOPY=llvm-objcopy
+    elif command -v objcopy &>/dev/null; then
+        OBJCOPY=objcopy
+    else
+        OBJCOPY=$(which ${OBJCOPY:-objcopy} 2>/dev/null || echo "")
+    fi
+    if [[ -n "$OBJCOPY" ]]; then
+        echo "Using $OBJCOPY to globalize hidden symbols"
+        $OBJCOPY --globalize-symbol='_ZNK2OT4cff213accelerator_t11get_extentsEP9hb_font_tjP18hb_glyph_extents_t' \
+            hb-ot-cff2-table.o hb-ot-cff2-table.o 2>/dev/null || true
+    fi
+    # Repack harfbuzz archive
+    ar rcs ../Release/obj/third_party/harfbuzz/libharfbuzz.a *.o
+    cd ../..
+    rm -rf out/hb_fix
+
     ${CXX:-clang++} -shared -Wl,--whole-archive \
         out/Release/obj/libpdfium.a \
         -Wl,--no-whole-archive \
         -Wl,-soname,libpdfium.so \
-        -Wl,-Bsymbolic \
         -lpthread -lm -ldl \
         -o out/Release/libpdfium.so 2>&1
     LIBFILE="libpdfium.so"
