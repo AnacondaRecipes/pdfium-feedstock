@@ -370,7 +370,9 @@ if old_str in content:
     print('Patched HarfBuzz BUILD.gn: is_component_build -> true')
 # Remove HB_NO_SUBSET_CFF — it disables CFF2 code but hb-subset-plan-var.cc
 # still references cff2::accelerator_t::get_extents, causing undefined symbol.
+# Must remove both the define AND the conditional removal (defines -= [...])
 content = content.replace('"HB_NO_SUBSET_CFF",\n', '')
+content = content.replace('defines -= [ "HB_NO_SUBSET_CFF" ]', '# Patched: HB_NO_SUBSET_CFF removed globally')
 # Also add HB_NO_VISIBILITY to disable __attribute__((visibility("hidden")))
 # on HB_INTERNAL symbols (e.g., cff2::accelerator_t::get_extents)
 content = content.replace(
