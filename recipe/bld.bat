@@ -100,6 +100,11 @@ if not defined WINDOWSSDKDIR (
     )
 )
 
+:: Debug: test vs_toolchain.py directly
+echo Testing vs_toolchain.py...
+python build\vs_toolchain.py get_toolchain_dir 2>&1
+echo vs_toolchain.py exit code: %errorlevel%
+
 :: --- 8. Configure GN ---
 echo === Configuring build ===
 mkdir out\Release 2>nul
