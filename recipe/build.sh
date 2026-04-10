@@ -361,6 +361,18 @@ content = content.replace(
 with open('build/config/sanitizers/sanitizers.gni', 'w') as f:
     f.write(content)
 
+# Patch: Force HarfBuzz to export symbols even for non-component builds.
+# HarfBuzz CFF2 has cross-object hidden symbol refs that fail at shared lib link time.
+with open('third_party/harfbuzz/BUILD.gn', 'r') as f:
+    content = f.read()
+content = content.replace(
+    'if (is_component_build) {',
+    'if (true) {  # Patched: always export HarfBuzz symbols for shared lib',
+    1  # only replace the first occurrence (the HB_EXTERN block)
+)
+with open('third_party/harfbuzz/BUILD.gn', 'w') as f:
+    f.write(content)
+
 # Patch: Use default symbol visibility so FPDF_EXPORT symbols are exported
 # The static lib is compiled with -fvisibility=hidden by default (Chromium convention).
 # We need default visibility so the shared lib can export the public FPDF API.
@@ -474,10 +486,12 @@ if [[ "$(uname)" == "Darwin" ]]; then
         out/Release/obj/libpdfium.a 2>&1
     LIBFILE="libpdfium.dylib"
 else
+    # Use -Bsymbolic to resolve hidden internal symbols within the shared lib
     ${CXX:-clang++} -shared -Wl,--whole-archive \
         out/Release/obj/libpdfium.a \
         -Wl,--no-whole-archive \
         -Wl,-soname,libpdfium.so \
+        -Wl,-Bsymbolic \
         -lpthread -lm -ldl \
         -o out/Release/libpdfium.so 2>&1
     LIBFILE="libpdfium.so"
