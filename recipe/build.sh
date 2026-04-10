@@ -333,6 +333,18 @@ content = content.replace(
 with open('build/config/sanitizers/sanitizers.gni', 'w') as f:
     f.write(content)
 
+# Patch: Use default symbol visibility so FPDF_EXPORT symbols are exported
+# The static lib is compiled with -fvisibility=hidden by default (Chromium convention).
+# We need default visibility so the shared lib can export the public FPDF API.
+with open('build/config/gcc/BUILD.gn', 'r') as f:
+    content = f.read()
+content = content.replace(
+    'cflags = [ "-fvisibility=hidden" ]',
+    'cflags = [ "-fvisibility=default" ]  # Patched: need visible symbols for shared lib'
+)
+with open('build/config/gcc/BUILD.gn', 'w') as f:
+    f.write(content)
+
 # Patch: Remove -latomic from Linux runtime_library config
 # Chromium's Linux config unconditionally links libatomic, which may not be
 # available in conda's clang environment. PDFium doesn't need it.
@@ -356,11 +368,13 @@ python3 << 'EXPORT_SYMBOLS'
 import glob, re, os
 
 symbols = []
+# Skip XFA-only symbols (FPDF_BStr_*) since we build without XFA
+xfa_only = {'FPDF_BStr_Init', 'FPDF_BStr_Set', 'FPDF_BStr_Clear'}
 for header in sorted(glob.glob("public/fpdf*.h")):
     with open(header) as f:
         for line in f:
             m = re.match(r'FPDF_EXPORT\s+\w.*?\s+(FPDF\w+)\s*\(', line)
-            if m:
+            if m and m.group(1) not in xfa_only:
                 symbols.append(m.group(1))
 
 if os.uname().sysname == "Darwin":
