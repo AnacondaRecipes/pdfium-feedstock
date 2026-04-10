@@ -486,40 +486,39 @@ ls -lah out/Release/obj/libpdfium.a
 
 # --- 9. Create shared library from static archive ---
 echo "=== Creating shared library ==="
+
+# Fix hidden HarfBuzz CFF2 symbol in the complete static archive.
+# Use objcopy to globalize the hidden symbol directly in libpdfium.a.
+echo "Fixing hidden visibility on HarfBuzz CFF2 symbol..."
+HIDDEN_SYM='_ZNK2OT4cff213accelerator_t11get_extentsEP9hb_font_tjP18hb_glyph_extents_t'
+OBJCOPY_BIN=$(which llvm-objcopy 2>/dev/null || which ${OBJCOPY:-objcopy} 2>/dev/null || echo "")
+if [[ -n "$OBJCOPY_BIN" ]]; then
+    echo "Using $OBJCOPY_BIN"
+    mkdir -p out/ar_fix && cd out/ar_fix
+    ar x ../Release/obj/libpdfium.a
+    if [[ -f hb-ot-cff2-table.o ]]; then
+        echo "Before: $(nm hb-ot-cff2-table.o 2>/dev/null | grep get_extents | head -1)"
+        $OBJCOPY_BIN --globalize-symbol="$HIDDEN_SYM" hb-ot-cff2-table.o
+        echo "After:  $(nm hb-ot-cff2-table.o 2>/dev/null | grep get_extents | head -1)"
+        ar rcs ../Release/obj/libpdfium.a *.o
+    else
+        echo "WARNING: hb-ot-cff2-table.o not found in libpdfium.a"
+    fi
+    cd ../.. && rm -rf out/ar_fix
+else
+    echo "WARNING: No objcopy found, skipping symbol fix"
+fi
+
 if [[ "$(uname)" == "Darwin" ]]; then
     SDK_PATH=$(xcrun --show-sdk-path 2>/dev/null || echo "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk")
     ${CXX:-clang++} -shared -all_load \
         -Wl,-install_name,@rpath/libpdfium.dylib \
         -isysroot "$SDK_PATH" \
         -framework AppKit -framework CoreFoundation \
-        -Wl,-undefined,dynamic_lookup \
         -o out/Release/libpdfium.dylib \
         out/Release/obj/libpdfium.a 2>&1
     LIBFILE="libpdfium.dylib"
 else
-    # Fix hidden HarfBuzz CFF2 symbol in the complete static archive.
-    # Use objcopy to globalize the hidden symbol directly in libpdfium.a.
-    echo "Fixing hidden visibility on HarfBuzz CFF2 symbol..."
-    HIDDEN_SYM='_ZNK2OT4cff213accelerator_t11get_extentsEP9hb_font_tjP18hb_glyph_extents_t'
-    OBJCOPY_BIN=$(which llvm-objcopy 2>/dev/null || which ${OBJCOPY:-objcopy} 2>/dev/null || echo "")
-    if [[ -n "$OBJCOPY_BIN" ]]; then
-        echo "Using $OBJCOPY_BIN"
-        mkdir -p out/ar_fix && cd out/ar_fix
-        ar x ../Release/obj/libpdfium.a
-        if [[ -f hb-ot-cff2-table.o ]]; then
-            echo "Before: $(nm hb-ot-cff2-table.o 2>/dev/null | grep get_extents | head -1)"
-            $OBJCOPY_BIN --globalize-symbol="$HIDDEN_SYM" hb-ot-cff2-table.o
-            echo "After:  $(nm hb-ot-cff2-table.o 2>/dev/null | grep get_extents | head -1)"
-            ar rcs ../Release/obj/libpdfium.a *.o
-        else
-            echo "WARNING: hb-ot-cff2-table.o not found in libpdfium.a"
-            ls *.o | grep -i cff || echo "No cff objects found"
-        fi
-        cd ../.. && rm -rf out/ar_fix
-    else
-        echo "WARNING: No objcopy found, skipping symbol fix"
-    fi
-
     ${CXX:-clang++} -shared -Wl,--whole-archive \
         out/Release/obj/libpdfium.a \
         -Wl,--no-whole-archive \
