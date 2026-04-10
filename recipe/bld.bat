@@ -78,8 +78,12 @@ if errorlevel 1 exit /b 1
 :: --- 6. Ensure python3 is available (Windows has python.exe, not python3.exe) ---
 where python3 >nul 2>&1 || (
     echo Creating python3 alias...
-    copy "%PYTHON%" "%PREFIX%\python3.exe" >nul 2>&1
-    copy "%PYTHON%" "%BUILD_PREFIX%\python3.exe" >nul 2>&1
+    for /f "delims=" %%P in ('where python') do (
+        copy "%%P" "%%~dpPpython3.exe" >nul 2>&1
+        echo Created python3.exe in %%~dpP
+        goto :python3_done
+    )
+    :python3_done
 )
 
 :: --- 7. Configure GN ---
