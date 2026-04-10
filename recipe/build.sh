@@ -135,26 +135,35 @@ else
 fi
 
 echo "Downloading GN for ${GN_PLATFORM}..."
-# Use python instead of curl to avoid dyld symbol issues on macOS.
-# Includes retry logic for transient 503 errors from Google CIPD.
+# Try CIPD first, fall back to building from source if unavailable.
+GN_DOWNLOADED=false
 python3 -c "
 import urllib.request, time, sys
 url = 'https://chrome-infra-packages.appspot.com/dl/gn/gn/${GN_PLATFORM}/+/git_revision:${GN_REV}'
-for attempt in range(5):
+for attempt in range(3):
     try:
-        print(f'Fetching (attempt {attempt+1}): {url}')
+        print(f'CIPD attempt {attempt+1}: {url}')
         urllib.request.urlretrieve(url, 'gn.zip')
-        print('Downloaded gn.zip')
-        break
+        print('Downloaded gn.zip from CIPD')
+        sys.exit(0)
     except Exception as e:
-        print(f'Download failed: {e}')
-        if attempt < 4:
+        print(f'CIPD download failed: {e}')
+        if attempt < 2:
             time.sleep(5 * (attempt + 1))
-        else:
-            raise
-"
-unzip -oq gn.zip -d gn_bin
-chmod +x gn_bin/gn
+sys.exit(1)
+" && GN_DOWNLOADED=true || true
+
+if [[ "$GN_DOWNLOADED" == "true" ]]; then
+    unzip -oq gn.zip -d gn_bin
+    chmod +x gn_bin/gn
+else
+    echo "CIPD unavailable, building GN from source..."
+    git clone --depth 1 https://gn.googlesource.com/gn.git gn_src
+    (cd gn_src && python3 build/gen.py && ninja -C out gn)
+    mkdir -p gn_bin
+    cp gn_src/out/gn gn_bin/gn
+    chmod +x gn_bin/gn
+fi
 GN="$(pwd)/gn_bin/gn"
 echo "GN version: $($GN --version)"
 
