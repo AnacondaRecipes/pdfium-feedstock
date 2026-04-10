@@ -492,6 +492,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
         -Wl,-install_name,@rpath/libpdfium.dylib \
         -isysroot "$SDK_PATH" \
         -framework AppKit -framework CoreFoundation \
+        -Wl,-undefined,dynamic_lookup \
         -o out/Release/libpdfium.dylib \
         out/Release/obj/libpdfium.a 2>&1
     LIBFILE="libpdfium.dylib"
