@@ -34,7 +34,7 @@ requirements:
     - {{ compiler('cxx') }}            # [not linux]
     - {{ stdlib('c') }}
     - ninja-base
-    - python *  # build tool only (GN scripts), any version
+    - python
     - curl
     - unzip
     - git
