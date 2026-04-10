@@ -424,13 +424,13 @@ ls -lah out/Release/obj/libpdfium.a
 echo "=== Creating shared library ==="
 if [[ "$(uname)" == "Darwin" ]]; then
     SDK_PATH=$(xcrun --show-sdk-path 2>/dev/null || echo "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk")
-    ${CXX:-clang++} -shared -all_load \
+    ${CXX:-clang++} -v -shared -all_load \
         -Wl,-install_name,@rpath/libpdfium.dylib \
         -isysroot "$SDK_PATH" \
         -framework AppKit -framework CoreFoundation \
         -Wl,-exported_symbols_list,out/pdfium.export_list \
         -o out/Release/libpdfium.dylib \
-        out/Release/obj/libpdfium.a
+        out/Release/obj/libpdfium.a 2>&1
     LIBFILE="libpdfium.dylib"
 else
     echo "Link command: ${CXX:-clang++} -shared -Wl,--whole-archive out/Release/obj/libpdfium.a -Wl,--no-whole-archive -Wl,-soname,libpdfium.so -Wl,--version-script=out/pdfium.version_script -lpthread -lm -ldl -o out/Release/libpdfium.so"
@@ -440,7 +440,7 @@ else
         -Wl,-soname,libpdfium.so \
         -Wl,--version-script=out/pdfium.version_script \
         -lpthread -lm -ldl \
-        -o out/Release/libpdfium.so
+        -o out/Release/libpdfium.so 2>&1
     LIBFILE="libpdfium.so"
 fi
 echo "Shared library:"
