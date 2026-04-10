@@ -48,6 +48,10 @@ echo "Ninja: $(ninja --version)"
 # Run pypdfium2's native build system
 # It clones pdfium source, fetches deps from DEPS file, configures GN, builds with ninja
 echo "=== Running build_native.py ==="
+# Remove legacy_gn.patch — it patches out path_exists() calls for old GN,
+# but our GN (v2342+) supports path_exists() natively, so the patch conflicts.
+rm -f "$SRC_DIR/patches/legacy_gn.patch"
+
 python3 -c "
 import build_native
 # DefaultConfig already disables v8, xfa, skia, glib, partition_alloc
