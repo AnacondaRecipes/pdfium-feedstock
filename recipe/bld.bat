@@ -39,6 +39,8 @@ mkdir third_party\test_fonts 2>nul
 echo group("test_fonts") { testonly = true }> third_party\test_fonts\BUILD.gn
 mkdir third_party\simdutf 2>nul
 echo group("simdutf") {}> third_party\simdutf\BUILD.gn
+mkdir tools\win\DebugVisualizers 2>nul
+echo group("DebugVisualizers") {}> tools\win\DebugVisualizers\BUILD.gn
 
 :: --- 4. Compiler stubs ---
 mkdir third_party\llvm-build\Release+Asserts 2>nul
