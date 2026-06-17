@@ -198,10 +198,13 @@ fi
 python3 << 'PATCH_BUILD'
 import os
 
-# compiler/BUILD.gn: remove -fno-lifetime-dse (GCC-only, not in LLVM clang)
+# compiler/BUILD.gn: remove flags our conda clang doesn't accept
+#  - -fno-lifetime-dse: GCC-only, not in LLVM clang
+#  - -fdiagnostics-show-inlining-chain: trunk-clang flag (added in chromium/7891)
 with open('build/config/compiler/BUILD.gn', 'r') as f:
     c = f.read()
 c = c.replace('cflags += [ "-fno-lifetime-dse" ]', '# Patched: -fno-lifetime-dse removed')
+c = c.replace('cflags += [ "-fdiagnostics-show-inlining-chain" ]', '# Patched: -fdiagnostics-show-inlining-chain removed')
 with open('build/config/compiler/BUILD.gn', 'w') as f:
     f.write(c)
 
