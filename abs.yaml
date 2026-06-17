@@ -1,5 +1,2 @@
 build_parameters:
   - "--error-overlinking"
-
-# Upload to staging so pypdfium2 can build before this PR merges
-staging_channel_upload_target: pdfium-7776-staging

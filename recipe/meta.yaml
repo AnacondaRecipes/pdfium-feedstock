@@ -1,5 +1,5 @@
 {% set name = "pdfium" %}
-{% set version = "7776" %}
+{% set version = "7891" %}
 
 package:
   name: {{ name }}
@@ -7,7 +7,7 @@ package:
 
 source:
   git_url: https://pdfium.googlesource.com/pdfium.git
-  git_rev: 79d84a59fb337f5ae4c1c9fee60677c29a310f46  # chromium/{{ version }}
+  git_rev: eee4375737f7647ce69053ae4fc3639c233f2b02  # chromium/{{ version }}
 
 build:
   number: 0
