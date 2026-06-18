@@ -35,7 +35,6 @@ requirements:
     - {{ stdlib('c') }}
     - ninja-base
     - python
-    - curl
     - unzip
     - git
 
@@ -68,9 +67,8 @@ test:
   commands:
     - test -f $PREFIX/lib/libpdfium.dylib                  # [osx]
     - test -f $PREFIX/lib/libpdfium.so                     # [linux]
-    {% for each_header in headers %}
-    - test -f "${PREFIX}/include/{{ each_header }}"        # [unix]
-    {% endfor %}
+    # Shell loop (not a Jinja {% for %}) so anaconda-linter's parser accepts it
+    - for h in {{ headers|join(" ") }}; do test -f "$PREFIX/include/$h" || exit 1; done  # [unix]
     - python -c "import ctypes; ctypes.CDLL('${PREFIX}/lib/libpdfium${SHLIB_EXT}')"  # [unix]
   requires:                                                # [unix]
     - python                                               # [unix]
