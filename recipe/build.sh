@@ -283,21 +283,10 @@ ls -lh out/Release/obj/libpdfium.a
 # --- 8. Create shared library ---
 echo "=== Creating shared library ==="
 
-# Stub for hidden HarfBuzz CFF2 symbol (HB_INTERNAL visibility).
-# Returns false = no extents. Only used in font subsetting, not by pypdfium2.
-cat > out/hb_cff2_stub.cc << 'STUB'
-struct hb_font_t;
-struct hb_glyph_extents_t;
-namespace OT { namespace cff2 {
-struct accelerator_t {
-    bool get_extents(hb_font_t*, unsigned int, hb_glyph_extents_t*) const;
-};
-bool accelerator_t::get_extents(hb_font_t*, unsigned int, hb_glyph_extents_t*) const {
-    return false;
-}
-}}
-STUB
-${CXX:-clang++} -c -fPIC -o out/hb_cff2_stub.o out/hb_cff2_stub.cc
+# Note: chromium/7776 needed a C++ stub for OT::cff2::accelerator_t::get_extents
+# (it was hidden via HB_INTERNAL). At 7891 our harfbuzz BUILD.gn visibility patches
+# compile that symbol into libpdfium.a with a real definition, so the stub is now a
+# duplicate and must NOT be re-added (multiple-definition link error).
 
 if [[ "$(uname)" == "Darwin" ]]; then
     SDK_PATH=$(xcrun --show-sdk-path 2>/dev/null || echo "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk")
@@ -306,13 +295,12 @@ if [[ "$(uname)" == "Darwin" ]]; then
         -isysroot "$SDK_PATH" \
         -framework AppKit -framework CoreFoundation \
         -o out/Release/libpdfium.dylib \
-        out/Release/obj/libpdfium.a out/hb_cff2_stub.o 2>&1
+        out/Release/obj/libpdfium.a 2>&1
     LIBFILE="libpdfium.dylib"
 else
     ${CXX:-clang++} -shared -Wl,--whole-archive \
         out/Release/obj/libpdfium.a \
         -Wl,--no-whole-archive \
-        out/hb_cff2_stub.o \
         -Wl,-soname,libpdfium.so \
         -lpthread -lm -ldl \
         -o out/Release/libpdfium.so 2>&1
