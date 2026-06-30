@@ -32,9 +32,8 @@ clone_dep "third_party/fp16/src"               "$G/external/github.com/Maratyszc
 clone_dep "third_party/freetype/src"           "$G/chromium/src/third_party/freetype2.git" "$(get_rev freetype)"
 clone_dep "third_party/harfbuzz/src"           "$G/external/github.com/harfbuzz/harfbuzz.git" "$(get_rev harfbuzz)"
 clone_dep "third_party/icu"                    "$G/chromium/deps/icu.git"                "$(get_rev icu)"
-clone_dep "third_party/libpng"                 "$G/chromium/src/third_party/libpng.git"  "$(get_rev libpng)"
+# zlib + libpng are unvendored — provided by conda host deps via use_system_* GN args.
 clone_dep "third_party/libjpeg_turbo"          "$G/chromium/deps/libjpeg_turbo.git"      "$(get_rev jpeg_turbo)"
-clone_dep "third_party/zlib"                   "$G/chromium/src/third_party/zlib.git"    "$(get_rev zlib)"
 clone_dep "third_party/brotli"                 "$G/chromium/src/third_party/brotli.git"  "$(get_rev brotli)"
 clone_dep "third_party/jinja2"                 "$G/chromium/src/third_party/jinja2.git"  "$(get_rev jinja2)"
 clone_dep "third_party/markupsafe"             "$G/chromium/src/third_party/markupsafe.git" "$(get_rev markupsafe)"
@@ -268,6 +267,12 @@ use_lld = false
 use_glib = false
 use_llvm_libatomic = false
 clang_version = "${CLANG_MAJOR}"
+# Unvendor zlib + libpng — use the conda host packages. GN's hermetic compiles
+# don't see conda's prefix, so point them at it explicitly.
+use_system_zlib = true
+use_system_libpng = true
+extra_cflags = [ "-I${PREFIX}/include" ]
+extra_ldflags = [ "-L${PREFIX}/lib" ]
 ARGS
 if [[ "$(uname)" == "Darwin" ]]; then
     echo 'mac_sdk_min = "11.0"' >> out/Release/args.gn
@@ -294,6 +299,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
         -Wl,-install_name,@rpath/libpdfium.dylib \
         -isysroot "$SDK_PATH" \
         -framework AppKit -framework CoreFoundation \
+        -L"$PREFIX/lib" -lpng -lz \
         -o out/Release/libpdfium.dylib \
         out/Release/obj/libpdfium.a 2>&1
     LIBFILE="libpdfium.dylib"
@@ -302,6 +308,7 @@ else
         out/Release/obj/libpdfium.a \
         -Wl,--no-whole-archive \
         -Wl,-soname,libpdfium.so \
+        -L"$PREFIX/lib" -lpng -lz \
         -lpthread -lm -ldl \
         -o out/Release/libpdfium.so 2>&1
     LIBFILE="libpdfium.so"

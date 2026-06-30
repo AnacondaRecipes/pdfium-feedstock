@@ -37,6 +37,10 @@ requirements:
     - python
     - unzip
     - git
+  host:
+    # Unvendored deps (use_system_* in build.sh); run_exports add them to run.
+    - zlib
+    - libpng
 
 {% set headers = [
     "fpdf_annot.h",
