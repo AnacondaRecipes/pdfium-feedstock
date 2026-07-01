@@ -1,0 +1,98 @@
+{% set name = "pdfium" %}
+{% set version = "7891" %}
+
+package:
+  name: {{ name }}
+  version: {{ version }}
+
+source:
+  git_url: https://pdfium.googlesource.com/pdfium.git
+  git_rev: eee4375737f7647ce69053ae4fc3639c233f2b02  # chromium/{{ version }}
+
+build:
+  number: 0
+  skip: True  # [win or (linux and (s390x or ppc64le))]
+  run_exports:
+    - {{ pin_subpackage(name, max_pin='x') }}
+  missing_dso_whitelist:                            # [linux]
+    - /lib64/libpthread.so.0                        # [linux]
+    - /lib64/libm.so.6                              # [linux]
+    - /lib64/libc.so.6                              # [linux]
+    - /lib64/libdl.so.2                             # [linux]
+    - /lib/libgcc_s.so.1                            # [linux]
+    - /lib64/libgcc_s.so.1                          # [linux]
+    - /lib64/libstdc++.so.6                         # [linux]
+    - /lib64/ld-linux-aarch64.so.1                  # [linux and aarch64]
+    - /lib64/ld-linux-x86-64.so.2                   # [linux and x86_64]
+
+requirements:
+  build:
+    - clang_{{ target_platform }}      # [linux]
+    - clangxx_{{ target_platform }}    # [linux]
+    - compiler-rt                      # [linux]
+    - {{ compiler('c') }}              # [not linux]
+    - {{ compiler('cxx') }}            # [not linux]
+    - {{ stdlib('c') }}
+    - ninja-base
+    - gn 0.0.20260526193358      # matches chromium/7891 DEPS gn_version
+    - python
+    - git
+  host:
+    # Unvendored deps (use_system_* in build.sh); run_exports add them to run.
+    - zlib
+    - libpng
+
+{% set headers = [
+    "fpdf_annot.h",
+    "fpdf_attachment.h",
+    "fpdf_catalog.h",
+    "fpdf_dataavail.h",
+    "fpdf_doc.h",
+    "fpdf_edit.h",
+    "fpdf_ext.h",
+    "fpdf_flatten.h",
+    "fpdf_formfill.h",
+    "fpdf_fwlevent.h",
+    "fpdf_javascript.h",
+    "fpdf_ppo.h",
+    "fpdf_progressive.h",
+    "fpdf_save.h",
+    "fpdf_searchex.h",
+    "fpdf_signature.h",
+    "fpdf_structtree.h",
+    "fpdf_sysfontinfo.h",
+    "fpdf_text.h",
+    "fpdf_thumbnail.h",
+    "fpdf_transformpage.h",
+    "fpdfview.h"
+] %}
+
+test:
+  commands:
+    - test -f $PREFIX/lib/libpdfium.dylib                  # [osx]
+    - test -f $PREFIX/lib/libpdfium.so                     # [linux]
+    # Shell loop (not a Jinja {% for %}) so anaconda-linter's parser accepts it
+    - for h in {{ headers|join(" ") }}; do test -f "$PREFIX/include/$h" || exit 1; done  # [unix]
+    - python -c "import ctypes; ctypes.CDLL('${PREFIX}/lib/libpdfium${SHLIB_EXT}')"  # [unix]
+  requires:                                                # [unix]
+    - python                                               # [unix]
+
+about:
+  home: https://pdfium.googlesource.com/pdfium/
+  summary: PDFium - PDF rendering library built from source
+  description: |
+    PDFium is an open-source PDF rendering library maintained by Google
+    as part of the Chromium project. This package builds PDFium from source,
+    providing the shared library and public headers for PDF manipulation
+    and rendering. Built without V8 JavaScript engine or XFA forms support
+    for a minimal, focused PDF rendering library.
+  license: Apache-2.0 AND BSD-3-Clause
+  license_family: Apache
+  license_file: LICENSE
+  license_url: https://pdfium.googlesource.com/pdfium/+/refs/heads/main/LICENSE
+  doc_url: https://pdfium.googlesource.com/pdfium/+/refs/heads/main/docs/
+  dev_url: https://pdfium.googlesource.com/pdfium/
+
+extra:
+  recipe-maintainers:
+    - xkong-anaconda

@@ -1,0 +1,8 @@
+anaconda_config_version: 1
+upstream_sources:
+  # pdfium has no GitHub/PyPI release; it is built from the Chromium milestone
+  # branches (chromium/NNNN) on googlesource. Track the latest milestone branch
+  # off the refs page. Bumps are reviewed manually (branch number != semver).
+  - webpage:
+      url: https://pdfium.googlesource.com/pdfium/+refs
+      regex: chromium/(\d+)
