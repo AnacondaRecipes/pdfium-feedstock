@@ -109,11 +109,13 @@ CLANG_REVISION = 'llvmorg-${CLANG_MAJOR}-init-0'
 CLANG_SUB_REVISION = 0
 PYEOF
 
-# Wrapper scripts for compiler (symlinks break conda clang's resource dir lookup)
+# Wrapper scripts for compiler (symlinks break conda clang's resource dir lookup).
+# Inject -isystem $PREFIX/include so GN's hermetic compiles find conda host headers
+# (e.g. unvendored zlib.h / png.h); -isystem ranks below the vendored -I dirs.
 CC_REAL=$(which ${CC:-clang}) CXX_REAL=$(which ${CXX:-clang++})
 for pair in "clang:$CC_REAL" "clang++:$CXX_REAL"; do
     name="${pair%%:*}" real="${pair#*:}"
-    printf '#!/bin/bash\nexec "%s" "$@"\n' "$real" > "${CLANG_DIR}/bin/${name}"
+    printf '#!/bin/bash\nexec "%s" -isystem "%s/include" "$@"\n' "$real" "$PREFIX" > "${CLANG_DIR}/bin/${name}"
     chmod +x "${CLANG_DIR}/bin/${name}"
 done
 
@@ -267,12 +269,10 @@ use_lld = false
 use_glib = false
 use_llvm_libatomic = false
 clang_version = "${CLANG_MAJOR}"
-# Unvendor zlib + libpng — use the conda host packages. GN's hermetic compiles
-# don't see conda's prefix, so point them at it explicitly.
+# Unvendor zlib + libpng — use the conda host packages (headers reached via the
+# -isystem injected into the compiler wrappers above; libs linked in step 8).
 use_system_zlib = true
 use_system_libpng = true
-extra_cflags = [ "-I${PREFIX}/include" ]
-extra_ldflags = [ "-L${PREFIX}/lib" ]
 ARGS
 if [[ "$(uname)" == "Darwin" ]]; then
     echo 'mac_sdk_min = "11.0"' >> out/Release/args.gn
