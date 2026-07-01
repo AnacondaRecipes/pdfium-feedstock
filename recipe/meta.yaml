@@ -34,8 +34,8 @@ requirements:
     - {{ compiler('cxx') }}            # [not linux]
     - {{ stdlib('c') }}
     - ninja-base
+    - gn 0.0.20260526193358      # matches chromium/7891 DEPS gn_version
     - python
-    - unzip
     - git
   host:
     # Unvendored deps (use_system_* in build.sh); run_exports add them to run.

@@ -45,42 +45,10 @@ clone_dep "third_party/nasm"                   "$G/chromium/deps/nasm.git"      
 
 echo "=== Dependencies fetched ==="
 
-# --- 2. Acquire GN (Generate Ninja) build tool ---
-# conda-forge gn is too old (v2231, need v2354+). Try CIPD, fall back to source build.
-GN_REV=$(grep "'gn_version'" DEPS | head -1 | sed "s/.*git_revision:\([a-f0-9]*\).*/\1/")
-if [[ "$(uname)" == "Darwin" ]]; then
-    GN_PLATFORM="mac-$([[ "$(uname -m)" == "arm64" ]] && echo arm64 || echo amd64)"
-else
-    GN_PLATFORM="linux-$([[ "$(uname -m)" == "aarch64" ]] && echo arm64 || echo amd64)"
-fi
-
-GN_DOWNLOADED=false
-python3 -c "
-import urllib.request, time, sys
-url = 'https://chrome-infra-packages.appspot.com/dl/gn/gn/${GN_PLATFORM}/+/git_revision:${GN_REV}'
-for attempt in range(3):
-    try:
-        urllib.request.urlretrieve(url, 'gn.zip')
-        sys.exit(0)
-    except Exception as e:
-        print(f'CIPD attempt {attempt+1} failed: {e}')
-        if attempt < 2: time.sleep(5 * (attempt + 1))
-sys.exit(1)
-" && GN_DOWNLOADED=true || true
-
-if [[ "$GN_DOWNLOADED" == "true" ]]; then
-    unzip -oq gn.zip -d gn_bin && chmod +x gn_bin/gn
-else
-    echo "CIPD unavailable, building GN from source..."
-    git clone https://gn.googlesource.com/gn.git gn_src
-    if [[ "$(uname)" == "Darwin" ]]; then
-        sed -i.bak "s/-mmacosx-version-min=14/-mmacosx-version-min=11.0/" gn_src/build/gen.py
-    fi
-    (cd gn_src && CC="${CC:-cc}" CXX="${CXX:-c++}" AR="${AR:-ar}" \
-        python3 build/gen.py --allow-warnings && ninja -C out gn)
-    mkdir -p gn_bin && cp gn_src/out/gn gn_bin/gn && chmod +x gn_bin/gn
-fi
-GN="$(pwd)/gn_bin/gn"
+# --- 2. GN (Generate Ninja) build tool ---
+# Provided by the conda `gn` build dep, pinned to the rev pdfium chromium/7891
+# expects (gn 0.0.20260526193358 = gn_version in DEPS). No build-time download.
+GN="$BUILD_PREFIX/bin/gn"
 echo "GN version: $($GN --version)"
 
 # --- 3. Build system stubs ---
